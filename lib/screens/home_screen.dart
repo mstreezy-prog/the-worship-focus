@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../controllers/library_controller.dart';
@@ -18,13 +20,30 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final LibraryController _controller = LibraryController();
   final ChordProDocumentService _documents = ChordProDocumentService();
   int _compactDetailIndex = 0;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    unawaited(_controller.initialize());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached ||
+        state == AppLifecycleState.hidden) {
+      unawaited(_controller.flushPendingSave());
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
     super.dispose();
   }
@@ -93,7 +112,17 @@ class _HomeScreenState extends State<HomeScreen> {
             final wide = constraints.maxWidth >= 900;
             return Scaffold(
               appBar: AppBar(
-                title: const Text('Worship Focus'),
+                title: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Worship Focus'),
+                    const SizedBox(width: 12),
+                    _SaveStatus(
+                      state: _controller.saveState,
+                      error: _controller.saveError,
+                    ),
+                  ],
+                ),
                 actions: [
                   IconButton(
                     tooltip: 'Import ChordPro',
@@ -310,6 +339,38 @@ class _Placeholder extends StatelessWidget {
             Text(title, style: Theme.of(context).textTheme.headlineSmall),
             const SizedBox(height: 8),
             Text(message, textAlign: TextAlign.center),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SaveStatus extends StatelessWidget {
+  const _SaveStatus({required this.state, this.error});
+
+  final LibrarySaveState state;
+  final String? error;
+
+  @override
+  Widget build(BuildContext context) {
+    final (icon, label) = switch (state) {
+      LibrarySaveState.loading => (Icons.sync, 'Loading'),
+      LibrarySaveState.saved => (Icons.cloud_done_outlined, 'Saved'),
+      LibrarySaveState.unsaved => (Icons.edit_outlined, 'Unsaved'),
+      LibrarySaveState.saving => (Icons.sync, 'Saving'),
+      LibrarySaveState.error => (Icons.error_outline, 'Save error'),
+    };
+    return Tooltip(
+      message: error ?? label,
+      child: Semantics(
+        label: error ?? label,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16),
+            const SizedBox(width: 4),
+            Text(label, style: Theme.of(context).textTheme.labelMedium),
           ],
         ),
       ),

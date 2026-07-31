@@ -41,4 +41,35 @@ class Song {
       tempo: tempo ?? this.tempo,
     );
   }
+
+  Map<String, Object?> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'artist': artist,
+      'chordPro': chordPro,
+      'musicXml': musicXml,
+      'key': key,
+      'tempo': tempo,
+    };
+  }
+
+  factory Song.fromJson(Map<String, Object?> json) {
+    final id = json['id'];
+    final title = json['title'];
+    final chordPro = json['chordPro'];
+    if (id is! String || title is! String || chordPro is! String) {
+      throw const FormatException('Invalid saved song');
+    }
+
+    return Song(
+      id: id,
+      title: title,
+      chordPro: chordPro,
+      artist: json['artist'] as String?,
+      musicXml: json['musicXml'] as String?,
+      key: json['key'] as String?,
+      tempo: json['tempo'] as int?,
+    );
+  }
 }
