@@ -25,10 +25,7 @@ class ServicePacketPdf {
                 ),
               ),
               pw.SizedBox(height: 20),
-              pw.Text(
-                "Service Order",
-                style: pw.TextStyle(fontSize: 18),
-              ),
+              pw.Text("Service Order", style: pw.TextStyle(fontSize: 18)),
               pw.SizedBox(height: 10),
               ...packet.songs.map((s) => pw.Text("- ${s.title}")),
             ],
@@ -38,7 +35,7 @@ class ServicePacketPdf {
     );
 
     for (final song in packet.songs) {
-      final lines = ChordLayoutEngine.build(song.content);
+      final lines = ChordLayoutEngine.build(song.chordPro);
 
       pdf.addPage(
         pw.Page(

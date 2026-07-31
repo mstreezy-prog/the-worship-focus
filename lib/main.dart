@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'ui/home_screen.dart';
+import 'screens/home_screen.dart';
 
 void main() {
   runApp(const WorshipFocusStudioApp());
@@ -13,10 +13,7 @@ class WorshipFocusStudioApp extends StatelessWidget {
     return MaterialApp(
       title: 'Worship Focus Studio',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: Colors.indigo,
-      ),
+      theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.indigo),
       home: const HomeScreen(),
     );
   }

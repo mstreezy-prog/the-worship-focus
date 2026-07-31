@@ -4,10 +4,7 @@ class ChordLayoutLine {
   final String lyrics;
   final List<ChordToken> chords;
 
-  ChordLayoutLine({
-    required this.lyrics,
-    required this.chords,
-  });
+  ChordLayoutLine({required this.lyrics, required this.chords});
 }
 
 class ChordLayoutEngine {
@@ -16,10 +13,7 @@ class ChordLayoutEngine {
 
     return parsed
         .map(
-          (line) => ChordLayoutLine(
-            lyrics: line.lyrics,
-            chords: line.chords,
-          ),
+          (line) => ChordLayoutLine(lyrics: line.lyrics, chords: line.chords),
         )
         .toList();
   }

@@ -18,6 +18,10 @@ class ChordProParser {
     final result = <ParsedLine>[];
 
     for (final line in lines) {
+      if (_isDirective(line)) {
+        continue;
+      }
+
       final chords = <ChordToken>[];
       final buffer = StringBuffer();
 
@@ -44,5 +48,10 @@ class ChordProParser {
     }
 
     return result;
+  }
+
+  static bool _isDirective(String line) {
+    final trimmed = line.trim();
+    return trimmed.startsWith('{') && trimmed.endsWith('}');
   }
 }

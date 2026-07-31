@@ -18,8 +18,5 @@ class ServiceItem {
   final Song song;
   final String? notes;
 
-  ServiceItem({
-    required this.song,
-    this.notes,
-  });
+  ServiceItem({required this.song, this.notes});
 }

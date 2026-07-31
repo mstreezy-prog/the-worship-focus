@@ -5,12 +5,14 @@ class SongRepository {
     Song(
       id: '1',
       title: 'Amazing Grace',
-      content: '[G]Amazing grace how [C]sweet the sound\nThat saved a wretch like [G]me',
+      chordPro:
+          '{title: Amazing Grace}\n[G]Amazing grace how [C]sweet the sound\nThat saved a wretch like [G]me',
     ),
     Song(
       id: '2',
       title: 'Sample Song',
-      content: '[D]This is a [G]sample chord chart\nFor Worship Focus [D]Studio',
+      chordPro:
+          '{title: Sample Song}\n[D]This is a [G]sample chord chart\nFor Worship Focus [D]Studio',
     ),
   ];
 

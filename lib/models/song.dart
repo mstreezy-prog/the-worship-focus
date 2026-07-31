@@ -3,7 +3,7 @@ class Song {
   final String title;
   final String? artist;
 
-  /// Primary formats (we now support both)
+  /// The editable ChordPro source for this song.
   final String chordPro;
 
   /// Optional MusicXML (for sheet music / piano parts later)
@@ -21,4 +21,24 @@ class Song {
     this.key,
     this.tempo,
   });
+
+  Song copyWith({
+    String? id,
+    String? title,
+    String? artist,
+    String? chordPro,
+    String? musicXml,
+    String? key,
+    int? tempo,
+  }) {
+    return Song(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      artist: artist ?? this.artist,
+      chordPro: chordPro ?? this.chordPro,
+      musicXml: musicXml ?? this.musicXml,
+      key: key ?? this.key,
+      tempo: tempo ?? this.tempo,
+    );
+  }
 }

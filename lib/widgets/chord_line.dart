@@ -8,10 +8,7 @@ class ChordLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const style = TextStyle(
-      fontFamily: 'monospace',
-      fontSize: 16,
-    );
+    const style = TextStyle(fontFamily: 'monospace', fontSize: 16);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -45,10 +42,7 @@ class ChordLine extends StatelessWidget {
               }),
 
               // lyrics
-              Positioned(
-                bottom: 0,
-                child: Text(text, style: style),
-              ),
+              Positioned(bottom: 0, child: Text(text, style: style)),
             ],
           ),
         );
