@@ -38,6 +38,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Performance mode'), findsOneWidget);
+    expect(find.byTooltip('Decrease font size'), findsOneWidget);
+    expect(find.byTooltip('Increase font size'), findsOneWidget);
+    expect(find.byTooltip('Start auto-scroll'), findsOneWidget);
+    expect(find.byTooltip('Keep screen awake'), findsOneWidget);
+    expect(find.byTooltip('Next song'), findsOneWidget);
   });
 
   testWidgets('uses a compact song-tools menu in portrait', (tester) async {

@@ -5,10 +5,18 @@ import '../services/chord_layout_engine.dart';
 import 'chord_line.dart';
 
 class PreviewPanel extends StatelessWidget {
-  const PreviewPanel({required this.song, this.performance = false, super.key});
+  const PreviewPanel({
+    required this.song,
+    this.performance = false,
+    this.fontSize = 16,
+    this.scrollController,
+    super.key,
+  });
 
   final Song song;
   final bool performance;
+  final double fontSize;
+  final ScrollController? scrollController;
 
   @override
   Widget build(BuildContext context) {
@@ -27,8 +35,11 @@ class PreviewPanel extends StatelessWidget {
         ),
         Expanded(
           child: ListView(
+            controller: scrollController,
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-            children: lines.map((line) => ChordLine(line: line)).toList(),
+            children: lines
+                .map((line) => ChordLine(line: line, fontSize: fontSize))
+                .toList(),
           ),
         ),
       ],

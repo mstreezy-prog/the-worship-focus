@@ -72,9 +72,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   void _openPerformance(Song song) {
+    final songs = _controller.songs;
+    final initialIndex = songs.indexWhere(
+      (candidate) => candidate.id == song.id,
+    );
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (context) => PerformanceScreen(song: song),
+        builder: (context) => PerformanceScreen(
+          songs: songs,
+          initialIndex: initialIndex < 0 ? 0 : initialIndex,
+        ),
         fullscreenDialog: true,
       ),
     );

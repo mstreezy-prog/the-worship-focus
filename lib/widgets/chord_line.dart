@@ -3,12 +3,13 @@ import '../services/chord_layout_engine.dart';
 
 class ChordLine extends StatelessWidget {
   final ChordLayoutLine line;
+  final double fontSize;
 
-  const ChordLine({super.key, required this.line});
+  const ChordLine({super.key, required this.line, this.fontSize = 16});
 
   @override
   Widget build(BuildContext context) {
-    const style = TextStyle(fontFamily: 'monospace', fontSize: 16);
+    final style = TextStyle(fontFamily: 'monospace', fontSize: fontSize);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -22,7 +23,7 @@ class ChordLine extends StatelessWidget {
         final charWidth = painter.width / (text.isEmpty ? 1 : text.length);
 
         return SizedBox(
-          height: 40,
+          height: fontSize * 2.5,
           child: Stack(
             children: [
               // chords
@@ -32,10 +33,10 @@ class ChordLine extends StatelessWidget {
                   top: 0,
                   child: Text(
                     c.chord,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'monospace',
                       fontWeight: FontWeight.bold,
-                      fontSize: 14,
+                      fontSize: fontSize * 0.9,
                     ),
                   ),
                 );
