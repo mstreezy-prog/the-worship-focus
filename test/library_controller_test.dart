@@ -76,4 +76,48 @@ void main() {
     controller.dispose();
     restored.dispose();
   });
+
+  test(
+    'creates, edits, duplicates, filters, sorts, and deletes songs',
+    () async {
+      final controller = LibraryController(
+        repository: SongRepository(store: _MemorySongStore()),
+        autosaveDelay: const Duration(days: 1),
+      );
+
+      final created = controller.createSong();
+      controller.updateTitle('New Arrangement');
+      controller.updateArtist('A Writer');
+      controller.updateKey('Bb');
+      controller.updateTempo('84');
+
+      expect(controller.selectedSong!.title, 'New Arrangement');
+      expect(controller.selectedSong!.artist, 'A Writer');
+      expect(controller.selectedSong!.key, 'Bb');
+      expect(controller.selectedSong!.tempo, 84);
+      expect(
+        controller.selectedSong!.chordPro,
+        contains('{title: New Arrangement}'),
+      );
+      expect(controller.selectedSong!.chordPro, contains('{artist: A Writer}'));
+
+      final duplicate = controller.duplicateSong(controller.selectedSong!);
+      expect(duplicate!.title, 'New Arrangement Copy');
+      expect(duplicate.chordPro, contains('{title: New Arrangement Copy}'));
+
+      controller.setSearchQuery('writer');
+      expect(
+        controller.visibleSongs.map((song) => song.id),
+        contains(created.id),
+      );
+      controller.setSongSort(SongSort.artist);
+      expect(controller.visibleSongs.first.artist, 'A Writer');
+
+      controller.deleteSong(duplicate);
+      expect(controller.songs, isNot(contains(duplicate)));
+
+      await controller.flushPendingSave();
+      controller.dispose();
+    },
+  );
 }

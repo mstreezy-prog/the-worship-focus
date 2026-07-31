@@ -11,7 +11,16 @@ import '../widgets/chordpro_editor.dart';
 import '../widgets/library_sidebar.dart';
 import '../widgets/preview_panel.dart';
 import '../widgets/song_list.dart';
+import '../widgets/song_metadata_editor.dart';
 import 'performance_screen.dart';
+
+enum _ToolbarAction {
+  saveAs,
+  transposeDown,
+  transposeUp,
+  performance,
+  exportService,
+}
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -24,6 +33,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final LibraryController _controller = LibraryController();
   final ChordProDocumentService _documents = ChordProDocumentService();
   int _compactDetailIndex = 0;
+  UndoHistoryController _undoController = UndoHistoryController();
 
   @override
   void initState() {
@@ -45,7 +55,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
+    _undoController.dispose();
     super.dispose();
+  }
+
+  void _resetUndoHistory() {
+    final previous = _undoController;
+    setState(() => _undoController = UndoHistoryController());
+    WidgetsBinding.instance.addPostFrameCallback((_) => previous.dispose());
+  }
+
+  void _selectSong(Song song) {
+    if (_controller.selectedSong?.id == song.id) return;
+    _resetUndoHistory();
+    _controller.selectSong(song);
   }
 
   void _openPerformance(Song song) {
@@ -73,6 +96,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     try {
       final document = await _documents.import();
       if (document == null || !mounted) return;
+      _resetUndoHistory();
       final song = _controller.addImportedSong(document);
       messenger.showSnackBar(SnackBar(content: Text('Imported ${song.title}')));
     } on Object catch (error) {
@@ -80,6 +104,55 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       messenger.showSnackBar(
         SnackBar(content: Text('Could not import file: $error')),
       );
+    }
+  }
+
+  void _createSong() {
+    _resetUndoHistory();
+    _controller.createSong();
+  }
+
+  void _duplicateSong(Song song) {
+    _resetUndoHistory();
+    _controller.duplicateSong(song);
+  }
+
+  Future<void> _confirmDeleteSong(Song song) async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete song?'),
+        content: Text(
+          '“${song.title.trim().isEmpty ? 'Untitled Song' : song.title}” will be removed from this device.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (shouldDelete != true || !mounted) return;
+    if (_controller.selectedSong?.id == song.id) _resetUndoHistory();
+    _controller.deleteSong(song);
+  }
+
+  void _handleSongAction(Song song, SongListAction action) {
+    switch (action) {
+      case SongListAction.toggleService:
+        _controller.toggleServiceSong(song);
+        break;
+      case SongListAction.duplicate:
+        _duplicateSong(song);
+        break;
+      case SongListAction.delete:
+        unawaited(_confirmDeleteSong(song));
+        break;
     }
   }
 
@@ -100,6 +173,111 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         SnackBar(content: Text('Could not save file: $error')),
       );
     }
+  }
+
+  void _handleToolbarAction(_ToolbarAction action) {
+    final song = _controller.selectedSong;
+    if (song == null) return;
+    switch (action) {
+      case _ToolbarAction.saveAs:
+        unawaited(_saveChordPro());
+        break;
+      case _ToolbarAction.transposeDown:
+        _controller.transpose(-1);
+        break;
+      case _ToolbarAction.transposeUp:
+        _controller.transpose(1);
+        break;
+      case _ToolbarAction.performance:
+        _openPerformance(song);
+        break;
+      case _ToolbarAction.exportService:
+        unawaited(_exportServicePacket());
+        break;
+    }
+  }
+
+  List<Widget> _buildAppActions(bool wide) {
+    final song = _controller.selectedSong;
+    return [
+      IconButton(
+        tooltip: 'Import ChordPro',
+        onPressed: _importChordPro,
+        icon: const Icon(Icons.file_open_outlined),
+      ),
+      if (song != null && wide) ...[
+        IconButton(
+          tooltip: 'Save ChordPro as',
+          onPressed: _saveChordPro,
+          icon: const Icon(Icons.save_as_outlined),
+        ),
+        IconButton(
+          tooltip: 'Transpose down',
+          onPressed: () => _controller.transpose(-1),
+          icon: const Icon(Icons.remove),
+        ),
+        IconButton(
+          tooltip: 'Transpose up',
+          onPressed: () => _controller.transpose(1),
+          icon: const Icon(Icons.add),
+        ),
+        IconButton(
+          tooltip: 'Performance mode',
+          onPressed: () => _openPerformance(song),
+          icon: const Icon(Icons.fullscreen),
+        ),
+        IconButton(
+          tooltip: 'Export service packet',
+          onPressed: _controller.serviceSongs.isEmpty
+              ? null
+              : _exportServicePacket,
+          icon: const Icon(Icons.picture_as_pdf_outlined),
+        ),
+      ] else if (song != null)
+        PopupMenuButton<_ToolbarAction>(
+          tooltip: 'Song tools',
+          onSelected: _handleToolbarAction,
+          itemBuilder: (context) => [
+            const PopupMenuItem(
+              value: _ToolbarAction.saveAs,
+              child: ListTile(
+                leading: Icon(Icons.save_as_outlined),
+                title: Text('Save ChordPro as'),
+              ),
+            ),
+            const PopupMenuItem(
+              value: _ToolbarAction.transposeDown,
+              child: ListTile(
+                leading: Icon(Icons.remove),
+                title: Text('Transpose down'),
+              ),
+            ),
+            const PopupMenuItem(
+              value: _ToolbarAction.transposeUp,
+              child: ListTile(
+                leading: Icon(Icons.add),
+                title: Text('Transpose up'),
+              ),
+            ),
+            const PopupMenuItem(
+              value: _ToolbarAction.performance,
+              child: ListTile(
+                leading: Icon(Icons.fullscreen),
+                title: Text('Performance mode'),
+              ),
+            ),
+            PopupMenuItem(
+              value: _ToolbarAction.exportService,
+              enabled: _controller.serviceSongs.isNotEmpty,
+              child: const ListTile(
+                leading: Icon(Icons.picture_as_pdf_outlined),
+                title: Text('Export service packet'),
+              ),
+            ),
+          ],
+        ),
+      const SizedBox(width: 8),
+    ];
   }
 
   @override
@@ -123,44 +301,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     ),
                   ],
                 ),
-                actions: [
-                  IconButton(
-                    tooltip: 'Import ChordPro',
-                    onPressed: _importChordPro,
-                    icon: const Icon(Icons.file_open_outlined),
-                  ),
-                  if (_controller.selectedSong != null) ...[
-                    IconButton(
-                      tooltip: 'Save ChordPro as',
-                      onPressed: _saveChordPro,
-                      icon: const Icon(Icons.save_as_outlined),
-                    ),
-                    IconButton(
-                      tooltip: 'Transpose down',
-                      onPressed: () => _controller.transpose(-1),
-                      icon: const Icon(Icons.remove),
-                    ),
-                    IconButton(
-                      tooltip: 'Transpose up',
-                      onPressed: () => _controller.transpose(1),
-                      icon: const Icon(Icons.add),
-                    ),
-                    IconButton(
-                      tooltip: 'Performance mode',
-                      onPressed: () =>
-                          _openPerformance(_controller.selectedSong!),
-                      icon: const Icon(Icons.fullscreen),
-                    ),
-                    IconButton(
-                      tooltip: 'Export service packet',
-                      onPressed: _controller.serviceSongs.isEmpty
-                          ? null
-                          : _exportServicePacket,
-                      icon: const Icon(Icons.picture_as_pdf_outlined),
-                    ),
-                    const SizedBox(width: 8),
-                  ],
-                ],
+                actions: _buildAppActions(wide),
               ),
               body: wide ? _buildWideLayout() : _buildCompactLayout(),
               bottomNavigationBar: wide
@@ -204,12 +345,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final song = _controller.selectedSong;
     return Column(
       children: [
-        SizedBox(height: 180, child: _buildSongList()),
+        Flexible(flex: 3, child: _buildSongList()),
         const Divider(height: 1),
         if (song != null)
           Expanded(
+            flex: 7,
             child: Column(
               children: [
+                SongMetadataEditor(
+                  song: song,
+                  onTitleChanged: _controller.updateTitle,
+                  onArtistChanged: _controller.updateArtist,
+                  onKeyChanged: _controller.updateKey,
+                  onTempoChanged: _controller.updateTempo,
+                ),
                 SegmentedButton<int>(
                   segments: const [
                     ButtonSegment(value: 0, label: Text('Editor')),
@@ -225,6 +374,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       ? ChordProEditor(
                           song: song,
                           onChanged: _controller.updateChordPro,
+                          undoController: _undoController,
                         )
                       : PreviewPanel(song: song),
                 ),
@@ -253,11 +403,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Widget _buildSongList() {
     return SongList(
-      songs: _controller.songs,
+      songs: _controller.visibleSongs,
       selectedSong: _controller.selectedSong,
       serviceSongIds: _controller.serviceSongIds,
-      onSelected: _controller.selectSong,
-      onServiceToggled: _controller.toggleServiceSong,
+      searchQuery: _controller.searchQuery,
+      songSort: _controller.songSort,
+      sortAscending: _controller.sortAscending,
+      onSelected: _selectSong,
+      onSearchChanged: _controller.setSearchQuery,
+      onSortChanged: _controller.setSongSort,
+      onSortDirectionChanged: _controller.toggleSortDirection,
+      onCreate: _createSong,
+      onAction: _handleSongAction,
     );
   }
 
@@ -266,24 +423,39 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (song == null) {
       return const Center(child: Text('Select a song to begin'));
     }
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < 650) {
-          return _buildTabbedWorkspace(song);
-        }
-        return Row(
-          children: [
-            Expanded(
-              child: ChordProEditor(
-                song: song,
-                onChanged: _controller.updateChordPro,
-              ),
-            ),
-            const VerticalDivider(width: 1),
-            Expanded(child: PreviewPanel(song: song)),
-          ],
-        );
-      },
+    return Column(
+      children: [
+        SongMetadataEditor(
+          song: song,
+          onTitleChanged: _controller.updateTitle,
+          onArtistChanged: _controller.updateArtist,
+          onKeyChanged: _controller.updateKey,
+          onTempoChanged: _controller.updateTempo,
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth < 650) {
+                return _buildTabbedWorkspace(song);
+              }
+              return Row(
+                children: [
+                  Expanded(
+                    child: ChordProEditor(
+                      song: song,
+                      onChanged: _controller.updateChordPro,
+                      undoController: _undoController,
+                    ),
+                  ),
+                  const VerticalDivider(width: 1),
+                  Expanded(child: PreviewPanel(song: song)),
+                ],
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -304,6 +476,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ChordProEditor(
                   song: song,
                   onChanged: _controller.updateChordPro,
+                  undoController: _undoController,
                 ),
                 PreviewPanel(song: song),
               ],

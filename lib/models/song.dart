@@ -26,19 +26,22 @@ class Song {
     String? id,
     String? title,
     String? artist,
+    bool clearArtist = false,
     String? chordPro,
     String? musicXml,
     String? key,
+    bool clearKey = false,
     int? tempo,
+    bool clearTempo = false,
   }) {
     return Song(
       id: id ?? this.id,
       title: title ?? this.title,
-      artist: artist ?? this.artist,
+      artist: clearArtist ? null : artist ?? this.artist,
       chordPro: chordPro ?? this.chordPro,
       musicXml: musicXml ?? this.musicXml,
-      key: key ?? this.key,
-      tempo: tempo ?? this.tempo,
+      key: clearKey ? null : key ?? this.key,
+      tempo: clearTempo ? null : tempo ?? this.tempo,
     );
   }
 

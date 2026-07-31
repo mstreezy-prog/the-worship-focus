@@ -6,11 +6,13 @@ class ChordProEditor extends StatefulWidget {
   const ChordProEditor({
     required this.song,
     required this.onChanged,
+    required this.undoController,
     super.key,
   });
 
   final Song song;
   final ValueChanged<String> onChanged;
+  final UndoHistoryController undoController;
 
   @override
   State<ChordProEditor> createState() => _ChordProEditorState();
@@ -47,17 +49,43 @@ class _ChordProEditorState extends State<ChordProEditor> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          child: Text(
-            'ChordPro editor',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
+        ListenableBuilder(
+          listenable: widget.undoController,
+          builder: (context, _) {
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'ChordPro editor',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Undo',
+                    onPressed: widget.undoController.value.canUndo
+                        ? widget.undoController.undo
+                        : null,
+                    icon: const Icon(Icons.undo),
+                  ),
+                  IconButton(
+                    tooltip: 'Redo',
+                    onPressed: widget.undoController.value.canRedo
+                        ? widget.undoController.redo
+                        : null,
+                    icon: const Icon(Icons.redo),
+                  ),
+                ],
+              ),
+            );
+          },
         ),
         Expanded(
           child: TextField(
             key: const ValueKey('chordpro-editor'),
             controller: _controller,
+            undoController: widget.undoController,
             onChanged: widget.onChanged,
             expands: true,
             maxLines: null,
