@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 
+import '../controllers/library_controller.dart';
 import '../models/service_packet.dart';
 import '../models/song.dart';
-import '../services/chord_layout_engine.dart';
 import '../services/service_packet_pdf.dart';
-import '../services/song_repository.dart';
-import '../widgets/chord_line.dart';
+import '../widgets/chordpro_editor.dart';
+import '../widgets/library_sidebar.dart';
+import '../widgets/preview_panel.dart';
+import '../widgets/song_list.dart';
+import 'performance_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -15,87 +18,254 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final SongRepository _repository = SongRepository();
-  final List<Song> _serviceSongs = [];
-  late final List<Song> _songs;
-  Song? _selected;
+  final LibraryController _controller = LibraryController();
+  int _compactDetailIndex = 0;
 
   @override
-  void initState() {
-    super.initState();
-    _songs = _repository.getAll();
-    _selected = _songs.firstOrNull;
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _openPerformance(Song song) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => PerformanceScreen(song: song),
+        fullscreenDialog: true,
+      ),
+    );
   }
 
   Future<void> _exportServicePacket() async {
-    if (_serviceSongs.isEmpty) {
-      return;
-    }
-
+    final songs = _controller.serviceSongs;
+    if (songs.isEmpty) return;
     final messenger = ScaffoldMessenger.of(context);
     final file = await ServicePacketPdf.export(
-      ServicePacket(
-        title: 'Sunday Service Packet',
-        songs: List.unmodifiable(_serviceSongs),
-      ),
+      ServicePacket(title: 'Sunday Service Packet', songs: songs),
     );
-    if (!mounted) {
-      return;
-    }
+    if (!mounted) return;
     messenger.showSnackBar(SnackBar(content: Text('Saved: ${file.path}')));
   }
 
   @override
   Widget build(BuildContext context) {
-    final song = _selected;
+    return ListenableBuilder(
+      listenable: _controller,
+      builder: (context, _) {
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final wide = constraints.maxWidth >= 900;
+            return Scaffold(
+              appBar: AppBar(
+                title: const Text('Worship Focus'),
+                actions: _controller.selectedSong == null
+                    ? null
+                    : [
+                        IconButton(
+                          tooltip: 'Transpose down',
+                          onPressed: () => _controller.transpose(-1),
+                          icon: const Icon(Icons.remove),
+                        ),
+                        IconButton(
+                          tooltip: 'Transpose up',
+                          onPressed: () => _controller.transpose(1),
+                          icon: const Icon(Icons.add),
+                        ),
+                        IconButton(
+                          tooltip: 'Performance mode',
+                          onPressed: () =>
+                              _openPerformance(_controller.selectedSong!),
+                          icon: const Icon(Icons.fullscreen),
+                        ),
+                        IconButton(
+                          tooltip: 'Export service packet',
+                          onPressed: _controller.serviceSongs.isEmpty
+                              ? null
+                              : _exportServicePacket,
+                          icon: const Icon(Icons.picture_as_pdf_outlined),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+              ),
+              body: wide ? _buildWideLayout() : _buildCompactLayout(),
+              bottomNavigationBar: wide
+                  ? null
+                  : LibrarySidebar(
+                      compact: true,
+                      selected: _controller.section,
+                      onSelected: _controller.selectSection,
+                    ),
+            );
+          },
+        );
+      },
+    );
+  }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Worship Focus Studio'),
-        actions: [
-          IconButton(
-            tooltip: 'Export service packet',
-            icon: const Icon(Icons.playlist_add_check),
-            onPressed: _serviceSongs.isEmpty ? null : _exportServicePacket,
+  Widget _buildWideLayout() {
+    return Row(
+      children: [
+        Expanded(
+          flex: 2,
+          child: LibrarySidebar(
+            selected: _controller.section,
+            onSelected: _controller.selectSection,
+          ),
+        ),
+        const VerticalDivider(width: 1),
+        Expanded(flex: 3, child: _buildSection()),
+        if (_controller.section == LibrarySection.songs) ...[
+          const VerticalDivider(width: 1),
+          Expanded(flex: 7, child: _buildSongWorkspace()),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildCompactLayout() {
+    if (_controller.section != LibrarySection.songs) {
+      return _buildSection();
+    }
+    final song = _controller.selectedSong;
+    return Column(
+      children: [
+        SizedBox(height: 180, child: _buildSongList()),
+        const Divider(height: 1),
+        if (song != null)
+          Expanded(
+            child: Column(
+              children: [
+                SegmentedButton<int>(
+                  segments: const [
+                    ButtonSegment(value: 0, label: Text('Editor')),
+                    ButtonSegment(value: 1, label: Text('Preview')),
+                  ],
+                  selected: {_compactDetailIndex},
+                  onSelectionChanged: (selection) {
+                    setState(() => _compactDetailIndex = selection.first);
+                  },
+                ),
+                Expanded(
+                  child: _compactDetailIndex == 0
+                      ? ChordProEditor(
+                          song: song,
+                          onChanged: _controller.updateChordPro,
+                        )
+                      : PreviewPanel(song: song),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildSection() {
+    return switch (_controller.section) {
+      LibrarySection.songs => _buildSongList(),
+      LibrarySection.servicePlans => const _Placeholder(
+        icon: Icons.event_note_outlined,
+        title: 'Service plans',
+        message: 'Build and rehearse service orders here.',
+      ),
+      LibrarySection.musicXml => const _Placeholder(
+        icon: Icons.music_note_outlined,
+        title: 'MusicXML',
+        message: 'MusicXML viewing and editing will arrive in a later phase.',
+      ),
+    };
+  }
+
+  Widget _buildSongList() {
+    return SongList(
+      songs: _controller.songs,
+      selectedSong: _controller.selectedSong,
+      serviceSongIds: _controller.serviceSongIds,
+      onSelected: _controller.selectSong,
+      onServiceToggled: _controller.toggleServiceSong,
+    );
+  }
+
+  Widget _buildSongWorkspace() {
+    final song = _controller.selectedSong;
+    if (song == null) {
+      return const Center(child: Text('Select a song to begin'));
+    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 650) {
+          return _buildTabbedWorkspace(song);
+        }
+        return Row(
+          children: [
+            Expanded(
+              child: ChordProEditor(
+                song: song,
+                onChanged: _controller.updateChordPro,
+              ),
+            ),
+            const VerticalDivider(width: 1),
+            Expanded(child: PreviewPanel(song: song)),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildTabbedWorkspace(Song song) {
+    return DefaultTabController(
+      length: 2,
+      child: Column(
+        children: [
+          const TabBar(
+            tabs: [
+              Tab(text: 'Editor'),
+              Tab(text: 'Preview'),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                ChordProEditor(
+                  song: song,
+                  onChanged: _controller.updateChordPro,
+                ),
+                PreviewPanel(song: song),
+              ],
+            ),
           ),
         ],
       ),
-      body: Row(
-        children: [
-          SizedBox(
-            width: 260,
-            child: ListView(
-              children: _songs.map((item) {
-                return ListTile(
-                  leading: Checkbox(
-                    value: _serviceSongs.contains(item),
-                    onChanged: (_) {
-                      setState(() {
-                        _serviceSongs.contains(item)
-                            ? _serviceSongs.remove(item)
-                            : _serviceSongs.add(item);
-                      });
-                    },
-                  ),
-                  title: Text(item.title),
-                  selected: song?.id == item.id,
-                  onTap: () => setState(() => _selected = item),
-                );
-              }).toList(),
-            ),
-          ),
-          const VerticalDivider(width: 1),
-          Expanded(
-            child: song == null
-                ? const Center(child: Text('No song selected'))
-                : ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: ChordLayoutEngine.build(
-                      song.chordPro,
-                    ).map((line) => ChordLine(line: line)).toList(),
-                  ),
-          ),
-        ],
+    );
+  }
+}
+
+class _Placeholder extends StatelessWidget {
+  const _Placeholder({
+    required this.icon,
+    required this.title,
+    required this.message,
+  });
+
+  final IconData icon;
+  final String title;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 56),
+            const SizedBox(height: 16),
+            Text(title, style: Theme.of(context).textTheme.headlineSmall),
+            const SizedBox(height: 8),
+            Text(message, textAlign: TextAlign.center),
+          ],
+        ),
       ),
     );
   }
