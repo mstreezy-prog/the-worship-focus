@@ -21,6 +21,14 @@ class _FakeGateway implements DocumentGateway {
 }
 
 void main() {
+  test('declares native picker types for ChordPro and plain text', () {
+    expect(chordProTypeGroup.extensions, ['cho', 'chordpro', 'pro', 'txt']);
+    expect(
+      chordProTypeGroup.uniformTypeIdentifiers,
+      containsAll(['com.theworshipfocus.chordpro', 'public.plain-text']),
+    );
+  });
+
   test('derives imported song title from metadata or file name', () {
     expect(
       const ImportedChordPro(

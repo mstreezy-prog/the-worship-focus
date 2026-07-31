@@ -6,7 +6,7 @@ import 'package:file_selector/file_selector.dart';
 const chordProTypeGroup = XTypeGroup(
   label: 'ChordPro files',
   extensions: ['cho', 'chordpro', 'pro', 'txt'],
-  uniformTypeIdentifiers: ['public.plain-text'],
+  uniformTypeIdentifiers: ['com.theworshipfocus.chordpro', 'public.plain-text'],
   mimeTypes: ['text/plain'],
 );
 
