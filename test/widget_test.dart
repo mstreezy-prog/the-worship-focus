@@ -17,6 +17,8 @@ void main() {
     expect(find.text('ChordPro editor'), findsOneWidget);
     expect(find.text('Live preview'), findsOneWidget);
     expect(find.byTooltip('Performance mode'), findsOneWidget);
+    expect(find.byTooltip('Import ChordPro'), findsOneWidget);
+    expect(find.byTooltip('Save ChordPro as'), findsOneWidget);
   });
 
   testWidgets('opens performance mode', (tester) async {

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../controllers/library_controller.dart';
 import '../models/service_packet.dart';
 import '../models/song.dart';
+import '../services/chordpro_document_service.dart';
 import '../services/service_packet_pdf.dart';
 import '../widgets/chordpro_editor.dart';
 import '../widgets/library_sidebar.dart';
@@ -19,6 +20,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final LibraryController _controller = LibraryController();
+  final ChordProDocumentService _documents = ChordProDocumentService();
   int _compactDetailIndex = 0;
 
   @override
@@ -47,6 +49,40 @@ class _HomeScreenState extends State<HomeScreen> {
     messenger.showSnackBar(SnackBar(content: Text('Saved: ${file.path}')));
   }
 
+  Future<void> _importChordPro() async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final document = await _documents.import();
+      if (document == null || !mounted) return;
+      final song = _controller.addImportedSong(document);
+      messenger.showSnackBar(SnackBar(content: Text('Imported ${song.title}')));
+    } on Object catch (error) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('Could not import file: $error')),
+      );
+    }
+  }
+
+  Future<void> _saveChordPro() async {
+    final song = _controller.selectedSong;
+    if (song == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final path = await _documents.save(
+        title: song.title,
+        chordPro: song.chordPro,
+      );
+      if (path == null || !mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text('Saved: $path')));
+    } on Object catch (error) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('Could not save file: $error')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -58,34 +94,44 @@ class _HomeScreenState extends State<HomeScreen> {
             return Scaffold(
               appBar: AppBar(
                 title: const Text('Worship Focus'),
-                actions: _controller.selectedSong == null
-                    ? null
-                    : [
-                        IconButton(
-                          tooltip: 'Transpose down',
-                          onPressed: () => _controller.transpose(-1),
-                          icon: const Icon(Icons.remove),
-                        ),
-                        IconButton(
-                          tooltip: 'Transpose up',
-                          onPressed: () => _controller.transpose(1),
-                          icon: const Icon(Icons.add),
-                        ),
-                        IconButton(
-                          tooltip: 'Performance mode',
-                          onPressed: () =>
-                              _openPerformance(_controller.selectedSong!),
-                          icon: const Icon(Icons.fullscreen),
-                        ),
-                        IconButton(
-                          tooltip: 'Export service packet',
-                          onPressed: _controller.serviceSongs.isEmpty
-                              ? null
-                              : _exportServicePacket,
-                          icon: const Icon(Icons.picture_as_pdf_outlined),
-                        ),
-                        const SizedBox(width: 8),
-                      ],
+                actions: [
+                  IconButton(
+                    tooltip: 'Import ChordPro',
+                    onPressed: _importChordPro,
+                    icon: const Icon(Icons.file_open_outlined),
+                  ),
+                  if (_controller.selectedSong != null) ...[
+                    IconButton(
+                      tooltip: 'Save ChordPro as',
+                      onPressed: _saveChordPro,
+                      icon: const Icon(Icons.save_as_outlined),
+                    ),
+                    IconButton(
+                      tooltip: 'Transpose down',
+                      onPressed: () => _controller.transpose(-1),
+                      icon: const Icon(Icons.remove),
+                    ),
+                    IconButton(
+                      tooltip: 'Transpose up',
+                      onPressed: () => _controller.transpose(1),
+                      icon: const Icon(Icons.add),
+                    ),
+                    IconButton(
+                      tooltip: 'Performance mode',
+                      onPressed: () =>
+                          _openPerformance(_controller.selectedSong!),
+                      icon: const Icon(Icons.fullscreen),
+                    ),
+                    IconButton(
+                      tooltip: 'Export service packet',
+                      onPressed: _controller.serviceSongs.isEmpty
+                          ? null
+                          : _exportServicePacket,
+                      icon: const Icon(Icons.picture_as_pdf_outlined),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                ],
               ),
               body: wide ? _buildWideLayout() : _buildCompactLayout(),
               bottomNavigationBar: wide

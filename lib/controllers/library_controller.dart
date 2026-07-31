@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../models/song.dart';
+import '../services/chordpro_document_service.dart';
 import '../services/chord_transposer.dart';
 import '../services/song_repository.dart';
 
@@ -60,6 +61,20 @@ class LibraryController extends ChangeNotifier {
         ? _serviceSongIds.remove(song.id)
         : _serviceSongIds.add(song.id);
     notifyListeners();
+  }
+
+  Song addImportedSong(ImportedChordPro document) {
+    final song = Song(
+      id: 'import-${DateTime.now().microsecondsSinceEpoch}',
+      title: document.suggestedTitle,
+      chordPro: document.chordPro,
+    );
+    _repository.add(song);
+    _songs.add(song);
+    _selectedSong = song;
+    _section = LibrarySection.songs;
+    notifyListeners();
+    return song;
   }
 
   void _replaceSong(Song updated) {
