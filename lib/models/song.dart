@@ -1,3 +1,5 @@
+import 'music_xml_arrangement.dart';
+
 class Song {
   final String id;
   final String title;
@@ -6,8 +8,8 @@ class Song {
   /// The editable ChordPro source for this song.
   final String chordPro;
 
-  /// Optional MusicXML (for sheet music / piano parts later)
-  final String? musicXml;
+  final MusicXmlArrangement? leadSheet;
+  final MusicXmlArrangement? fullPiano;
 
   final String? key;
   final int? tempo;
@@ -17,7 +19,8 @@ class Song {
     required this.title,
     required this.chordPro,
     this.artist,
-    this.musicXml,
+    this.leadSheet,
+    this.fullPiano,
     this.key,
     this.tempo,
   });
@@ -28,7 +31,10 @@ class Song {
     String? artist,
     bool clearArtist = false,
     String? chordPro,
-    String? musicXml,
+    MusicXmlArrangement? leadSheet,
+    bool clearLeadSheet = false,
+    MusicXmlArrangement? fullPiano,
+    bool clearFullPiano = false,
     String? key,
     bool clearKey = false,
     int? tempo,
@@ -39,7 +45,8 @@ class Song {
       title: title ?? this.title,
       artist: clearArtist ? null : artist ?? this.artist,
       chordPro: chordPro ?? this.chordPro,
-      musicXml: musicXml ?? this.musicXml,
+      leadSheet: clearLeadSheet ? null : leadSheet ?? this.leadSheet,
+      fullPiano: clearFullPiano ? null : fullPiano ?? this.fullPiano,
       key: clearKey ? null : key ?? this.key,
       tempo: clearTempo ? null : tempo ?? this.tempo,
     );
@@ -51,7 +58,8 @@ class Song {
       'title': title,
       'artist': artist,
       'chordPro': chordPro,
-      'musicXml': musicXml,
+      'leadSheet': leadSheet?.toJson(),
+      'fullPiano': fullPiano?.toJson(),
       'key': key,
       'tempo': tempo,
     };
@@ -65,14 +73,38 @@ class Song {
       throw const FormatException('Invalid saved song');
     }
 
+    final legacyMusicXml = json['musicXml'];
     return Song(
       id: id,
       title: title,
       chordPro: chordPro,
       artist: json['artist'] as String?,
-      musicXml: json['musicXml'] as String?,
+      leadSheet:
+          _arrangementFromJson(json['leadSheet']) ??
+          (legacyMusicXml is String
+              ? MusicXmlArrangement(
+                  fileName: 'Legacy-Lead-Sheet.musicxml',
+                  sourceXml: legacyMusicXml,
+                )
+              : null),
+      fullPiano: _arrangementFromJson(json['fullPiano']),
       key: json['key'] as String?,
       tempo: json['tempo'] as int?,
     );
+  }
+
+  MusicXmlArrangement? arrangement(MusicXmlArrangementType type) {
+    return switch (type) {
+      MusicXmlArrangementType.leadSheet => leadSheet,
+      MusicXmlArrangementType.fullPiano => fullPiano,
+    };
+  }
+
+  static MusicXmlArrangement? _arrangementFromJson(Object? value) {
+    if (value == null) return null;
+    if (value is! Map<String, Object?>) {
+      throw const FormatException('Invalid saved MusicXML arrangement');
+    }
+    return MusicXmlArrangement.fromJson(value);
   }
 }

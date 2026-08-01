@@ -3,12 +3,15 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../controllers/library_controller.dart';
+import '../models/music_xml_arrangement.dart';
 import '../models/service_packet.dart';
 import '../models/song.dart';
 import '../services/chordpro_document_service.dart';
+import '../services/music_xml_document_service.dart';
 import '../services/service_packet_pdf.dart';
 import '../widgets/chordpro_editor.dart';
 import '../widgets/library_sidebar.dart';
+import '../widgets/music_xml_workspace.dart';
 import '../widgets/preview_panel.dart';
 import '../widgets/song_list.dart';
 import '../widgets/song_metadata_editor.dart';
@@ -32,6 +35,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final LibraryController _controller = LibraryController();
   final ChordProDocumentService _documents = ChordProDocumentService();
+  final MusicXmlDocumentService _musicXmlDocuments = MusicXmlDocumentService();
   int _compactDetailIndex = 0;
   UndoHistoryController _undoController = UndoHistoryController();
 
@@ -182,6 +186,69 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _importMusicXml(MusicXmlArrangementType type) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final arrangement = await _musicXmlDocuments.import();
+      if (arrangement == null || !mounted) return;
+      _controller.setMusicXmlArrangement(type, arrangement);
+      messenger.showSnackBar(
+        SnackBar(content: Text('${type.label} attached to this song')),
+      );
+    } on Object catch (error) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('Could not import MusicXML: $error')),
+      );
+    }
+  }
+
+  Future<void> _exportMusicXml(MusicXmlArrangementType type) async {
+    final song = _controller.selectedSong;
+    final arrangement = song?.arrangement(type);
+    if (song == null || arrangement == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final path = await _musicXmlDocuments.save(
+        songTitle: song.title,
+        type: type,
+        arrangement: arrangement,
+      );
+      if (path == null || !mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text('Saved: $path')));
+    } on Object catch (error) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('Could not export MusicXML: $error')),
+      );
+    }
+  }
+
+  Future<void> _confirmRemoveMusicXml(MusicXmlArrangementType type) async {
+    final shouldRemove = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Remove ${type.label}?'),
+        content: const Text(
+          'The score will be detached from this song. The original file will not be deleted.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (shouldRemove == true && mounted) {
+      _controller.removeMusicXmlArrangement(type);
+    }
+  }
+
   void _handleToolbarAction(_ToolbarAction action) {
     final song = _controller.selectedSong;
     if (song == null) return;
@@ -205,6 +272,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   List<Widget> _buildAppActions(bool wide) {
+    if (_controller.section != LibrarySection.songs) {
+      return const [SizedBox(width: 8)];
+    }
     final song = _controller.selectedSong;
     return [
       IconButton(
@@ -336,10 +406,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
         ),
         const VerticalDivider(width: 1),
-        Expanded(flex: 3, child: _buildSection()),
-        if (_controller.section == LibrarySection.songs) ...[
+        if (_controller.section == LibrarySection.servicePlans)
+          Expanded(flex: 10, child: _buildSection())
+        else ...[
+          Expanded(flex: 3, child: _buildSongList()),
           const VerticalDivider(width: 1),
-          Expanded(flex: 7, child: _buildSongWorkspace()),
+          Expanded(
+            flex: 7,
+            child: _controller.section == LibrarySection.songs
+                ? _buildSongWorkspace()
+                : _buildMusicXmlWorkspace(),
+          ),
         ],
       ],
     );
@@ -400,12 +477,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         title: 'Service plans',
         message: 'Build and rehearse service orders here.',
       ),
-      LibrarySection.musicXml => const _Placeholder(
-        icon: Icons.music_note_outlined,
-        title: 'MusicXML',
-        message: 'MusicXML viewing and editing will arrive in a later phase.',
-      ),
+      LibrarySection.musicXml => _buildMusicXmlWorkspace(),
     };
+  }
+
+  Widget _buildMusicXmlWorkspace() {
+    return MusicXmlWorkspace(
+      songs: _controller.songs,
+      selectedSong: _controller.selectedSong,
+      onSongSelected: _selectSong,
+      onImport: (type) => unawaited(_importMusicXml(type)),
+      onExport: (type) => unawaited(_exportMusicXml(type)),
+      onRemove: (type) => unawaited(_confirmRemoveMusicXml(type)),
+    );
   }
 
   Widget _buildSongList() {

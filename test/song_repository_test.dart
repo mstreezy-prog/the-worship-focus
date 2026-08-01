@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:worship_focus_studio/models/music_xml_arrangement.dart';
 import 'package:worship_focus_studio/models/song.dart';
 import 'package:worship_focus_studio/services/song_repository.dart';
 import 'package:worship_focus_studio/services/song_store.dart';
@@ -16,13 +17,25 @@ class _MemorySongStore implements SongStore {
 }
 
 void main() {
-  test('Song JSON preserves ChordPro and optional metadata', () {
+  test('Song JSON preserves ChordPro, arrangements, and metadata', () {
     final song = Song(
       id: 'song-1',
       title: 'Grace',
       artist: 'Writer',
       chordPro: '{title: Grace}\n[C]Lyrics',
-      musicXml: '<score-partwise/>',
+      leadSheet: const MusicXmlArrangement(
+        fileName: 'Grace-Lead-Sheet.musicxml',
+        sourceXml: '<score-partwise/>',
+        scoreTitle: 'Grace',
+        partCount: 1,
+      ),
+      fullPiano: const MusicXmlArrangement(
+        fileName: 'Grace-Full-Piano.mxl',
+        sourceXml: '<score-partwise/>',
+        isCompressed: true,
+        partCount: 2,
+        transposeSemitones: 2,
+      ),
       key: 'C',
       tempo: 72,
     );
@@ -33,9 +46,25 @@ void main() {
     expect(decoded.title, song.title);
     expect(decoded.artist, song.artist);
     expect(decoded.chordPro, song.chordPro);
-    expect(decoded.musicXml, song.musicXml);
+    expect(decoded.leadSheet!.sourceXml, song.leadSheet!.sourceXml);
+    expect(decoded.leadSheet!.scoreTitle, 'Grace');
+    expect(decoded.fullPiano!.isCompressed, isTrue);
+    expect(decoded.fullPiano!.transposeSemitones, 2);
     expect(decoded.key, song.key);
     expect(decoded.tempo, song.tempo);
+  });
+
+  test('legacy MusicXML migrates into the lead-sheet slot', () {
+    final song = Song.fromJson({
+      'id': 'legacy',
+      'title': 'Legacy',
+      'chordPro': '[C]Legacy',
+      'musicXml': '<score-partwise/>',
+    });
+
+    expect(song.leadSheet!.sourceXml, '<score-partwise/>');
+    expect(song.fullPiano, isNull);
+    expect(song.toJson(), isNot(contains('musicXml')));
   });
 
   test('repository restores its persisted library', () async {

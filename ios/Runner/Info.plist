@@ -28,6 +28,19 @@
 				<string>com.theworshipfocus.chordpro</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>MusicXML Score</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.recordare.musicxml.uncompressed</string>
+				<string>com.recordare.musicxml</string>
+			</array>
+		</dict>
 	</array>
 	<key>CFBundleName</key>
 	<string>worship_focus_studio</string>
@@ -104,6 +117,46 @@
 				</array>
 				<key>public.mime-type</key>
 				<string>text/x-chordpro</string>
+			</dict>
+		</dict>
+	</array>
+	<key>UTImportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.xml</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>MusicXML Score</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.recordare.musicxml.uncompressed</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>musicxml</string>
+					<string>xml</string>
+				</array>
+				<key>public.mime-type</key>
+				<string>application/vnd.recordare.musicxml+xml</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.zip-archive</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Compressed MusicXML Score</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.recordare.musicxml</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<string>mxl</string>
+				<key>public.mime-type</key>
+				<string>application/vnd.recordare.musicxml</string>
 			</dict>
 		</dict>
 	</array>

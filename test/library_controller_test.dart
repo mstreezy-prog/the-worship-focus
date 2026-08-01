@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:worship_focus_studio/controllers/library_controller.dart';
+import 'package:worship_focus_studio/models/music_xml_arrangement.dart';
 import 'package:worship_focus_studio/models/song.dart';
 import 'package:worship_focus_studio/services/chordpro_document_service.dart';
 import 'package:worship_focus_studio/services/song_repository.dart';
@@ -75,6 +76,40 @@ void main() {
     expect(restored.selectedSong!.chordPro, '[F]Persisted edit');
     controller.dispose();
     restored.dispose();
+  });
+
+  test('attaches and removes the two fixed MusicXML arrangements', () async {
+    final controller = LibraryController(
+      repository: SongRepository(store: _MemorySongStore()),
+      autosaveDelay: const Duration(days: 1),
+    );
+    const leadSheet = MusicXmlArrangement(
+      fileName: 'lead.musicxml',
+      sourceXml: '<score-partwise/>',
+    );
+    const fullPiano = MusicXmlArrangement(
+      fileName: 'piano.mxl',
+      sourceXml: '<score-partwise/>',
+      isCompressed: true,
+    );
+
+    controller.setMusicXmlArrangement(
+      MusicXmlArrangementType.leadSheet,
+      leadSheet,
+    );
+    controller.setMusicXmlArrangement(
+      MusicXmlArrangementType.fullPiano,
+      fullPiano,
+    );
+
+    expect(controller.selectedSong!.leadSheet, same(leadSheet));
+    expect(controller.selectedSong!.fullPiano, same(fullPiano));
+
+    controller.removeMusicXmlArrangement(MusicXmlArrangementType.leadSheet);
+    expect(controller.selectedSong!.leadSheet, isNull);
+    expect(controller.selectedSong!.fullPiano, same(fullPiano));
+    await controller.flushPendingSave();
+    controller.dispose();
   });
 
   test(

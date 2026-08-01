@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../models/music_xml_arrangement.dart';
 import '../models/song.dart';
 import '../services/chord_transposer.dart';
 import '../services/chordpro_metadata.dart';
@@ -191,6 +192,31 @@ class LibraryController extends ChangeNotifier {
         chordPro: ChordTransposer.transposeChordPro(song.chordPro, semitones),
       ),
     );
+  }
+
+  void setMusicXmlArrangement(
+    MusicXmlArrangementType type,
+    MusicXmlArrangement arrangement,
+  ) {
+    final song = _selectedSong;
+    if (song == null) return;
+    _replaceSong(switch (type) {
+      MusicXmlArrangementType.leadSheet => song.copyWith(
+        leadSheet: arrangement,
+      ),
+      MusicXmlArrangementType.fullPiano => song.copyWith(
+        fullPiano: arrangement,
+      ),
+    });
+  }
+
+  void removeMusicXmlArrangement(MusicXmlArrangementType type) {
+    final song = _selectedSong;
+    if (song == null || song.arrangement(type) == null) return;
+    _replaceSong(switch (type) {
+      MusicXmlArrangementType.leadSheet => song.copyWith(clearLeadSheet: true),
+      MusicXmlArrangementType.fullPiano => song.copyWith(clearFullPiano: true),
+    });
   }
 
   void toggleServiceSong(Song song) {

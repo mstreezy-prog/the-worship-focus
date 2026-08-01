@@ -45,6 +45,22 @@ void main() {
     expect(find.byTooltip('Next song'), findsOneWidget);
   });
 
+  testWidgets('shows lead-sheet and full-piano MusicXML slots', (tester) async {
+    tester.view.physicalSize = const Size(1366, 1024);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const WorshipFocusStudioApp());
+    await tester.tap(find.text('MusicXML'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('MusicXML arrangements'), findsOneWidget);
+    expect(find.text('Lead Sheet'), findsOneWidget);
+    expect(find.text('Full Piano'), findsOneWidget);
+    expect(find.text('Import'), findsNWidgets(2));
+  });
+
   testWidgets('uses a compact song-tools menu in portrait', (tester) async {
     tester.view.physicalSize = const Size(820, 1180);
     tester.view.devicePixelRatio = 1;
@@ -55,5 +71,20 @@ void main() {
 
     expect(find.byTooltip('Song tools'), findsOneWidget);
     expect(find.byTooltip('Save ChordPro as'), findsNothing);
+  });
+
+  testWidgets('shows MusicXML arrangement cards in portrait', (tester) async {
+    tester.view.physicalSize = const Size(820, 1180);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const WorshipFocusStudioApp());
+    await tester.tap(find.text('MusicXML'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Lead Sheet'), findsOneWidget);
+    expect(find.text('Full Piano'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }
