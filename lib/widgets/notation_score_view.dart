@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/music_xml_display_transformer.dart';
 import '../services/notation_renderer.dart';
 
 class NotationScoreView extends StatefulWidget {
@@ -34,7 +35,9 @@ class _NotationScoreViewState extends State<NotationScoreView> {
   Future<NotationDocument> _load() async {
     await NotationRenderer.initialize();
     await Future<void>.delayed(Duration.zero);
-    return NotationRenderer.parse(widget.musicXml);
+    return NotationRenderer.parse(
+      MusicXmlDisplayTransformer.prepare(widget.musicXml),
+    );
   }
 
   @override
