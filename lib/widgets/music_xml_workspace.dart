@@ -9,6 +9,7 @@ class MusicXmlWorkspace extends StatelessWidget {
     required this.selectedSong,
     required this.onSongSelected,
     required this.onImport,
+    required this.onView,
     required this.onExport,
     required this.onRemove,
     super.key,
@@ -18,6 +19,7 @@ class MusicXmlWorkspace extends StatelessWidget {
   final Song? selectedSong;
   final ValueChanged<Song> onSongSelected;
   final ValueChanged<MusicXmlArrangementType> onImport;
+  final ValueChanged<MusicXmlArrangementType> onView;
   final ValueChanged<MusicXmlArrangementType> onExport;
   final ValueChanged<MusicXmlArrangementType> onRemove;
 
@@ -27,6 +29,10 @@ class MusicXmlWorkspace extends StatelessWidget {
     if (song == null) {
       return const Center(child: Text('Create or select a song to add scores'));
     }
+    final attachedTypes = [
+      for (final type in MusicXmlArrangementType.values)
+        if (song.arrangement(type) != null) type,
+    ];
     return CustomScrollView(
       slivers: [
         SliverPadding(
@@ -63,6 +69,30 @@ class MusicXmlWorkspace extends StatelessWidget {
                     if (selected != null) onSongSelected(selected);
                   },
                 ),
+                if (attachedTypes.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    'Open attached score',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final type in attachedTypes)
+                        FilledButton.tonalIcon(
+                          onPressed: () => onView(type),
+                          icon: Icon(
+                            type == MusicXmlArrangementType.leadSheet
+                                ? Icons.music_note_outlined
+                                : Icons.piano_outlined,
+                          ),
+                          label: Text('Open ${type.label}'),
+                        ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
@@ -77,6 +107,7 @@ class MusicXmlWorkspace extends StatelessWidget {
                     type: type,
                     arrangement: song.arrangement(type),
                     onImport: () => onImport(type),
+                    onView: () => onView(type),
                     onExport: () => onExport(type),
                     onRemove: () => onRemove(type),
                   ),
@@ -92,7 +123,7 @@ class MusicXmlWorkspace extends StatelessWidget {
                 crossAxisCount: 2,
                 mainAxisSpacing: 16,
                 crossAxisSpacing: 16,
-                childAspectRatio: 1.25,
+                childAspectRatio: 0.88,
                 children: cards,
               );
             },
@@ -108,6 +139,7 @@ class _ArrangementCard extends StatelessWidget {
     required this.type,
     required this.arrangement,
     required this.onImport,
+    required this.onView,
     required this.onExport,
     required this.onRemove,
   });
@@ -115,6 +147,7 @@ class _ArrangementCard extends StatelessWidget {
   final MusicXmlArrangementType type;
   final MusicXmlArrangement? arrangement;
   final VoidCallback onImport;
+  final VoidCallback onView;
   final VoidCallback onExport;
   final VoidCallback onRemove;
 
@@ -194,6 +227,11 @@ class _ArrangementCard extends StatelessWidget {
                   label: Text(document == null ? 'Import' : 'Replace'),
                 ),
                 if (document != null) ...[
+                  FilledButton.tonalIcon(
+                    onPressed: onView,
+                    icon: const Icon(Icons.visibility_outlined),
+                    label: const Text('View Score'),
+                  ),
                   OutlinedButton.icon(
                     onPressed: onExport,
                     icon: const Icon(Icons.save_alt_outlined),

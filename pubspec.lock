@@ -230,6 +230,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.0.0"
+  flutter_notemus:
+    dependency: "direct main"
+    description:
+      name: flutter_notemus
+      sha256: "4a369e64b9e8ae0ee29e9ab38c58bb8b227cff73f1b49a9ac3dd00e9cf8e4a19"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.6.0"
   flutter_test:
     dependency: "direct dev"
     description: flutter

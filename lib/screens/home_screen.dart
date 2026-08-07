@@ -15,6 +15,7 @@ import '../widgets/music_xml_workspace.dart';
 import '../widgets/preview_panel.dart';
 import '../widgets/song_list.dart';
 import '../widgets/song_metadata_editor.dart';
+import 'music_xml_viewer_screen.dart';
 import 'performance_screen.dart';
 
 enum _ToolbarAction {
@@ -224,6 +225,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
+  void _openMusicXmlViewer(MusicXmlArrangementType type) {
+    final song = _controller.selectedSong;
+    if (song == null || song.arrangement(type) == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) =>
+            MusicXmlViewerScreen(song: song, initialType: type),
+      ),
+    );
+  }
+
   Future<void> _confirmRemoveMusicXml(MusicXmlArrangementType type) async {
     final shouldRemove = await showDialog<bool>(
       context: context,
@@ -272,6 +284,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   List<Widget> _buildAppActions(bool wide) {
+    if (_controller.section == LibrarySection.musicXml) {
+      return _buildMusicXmlAppActions();
+    }
     if (_controller.section != LibrarySection.songs) {
       return const [SizedBox(width: 8)];
     }
@@ -353,6 +368,51 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           ],
         ),
+      const SizedBox(width: 8),
+    ];
+  }
+
+  List<Widget> _buildMusicXmlAppActions() {
+    final song = _controller.selectedSong;
+    if (song == null) return const [SizedBox(width: 8)];
+    final availableTypes = [
+      for (final type in MusicXmlArrangementType.values)
+        if (song.arrangement(type) != null) type,
+    ];
+    if (availableTypes.isEmpty) return const [SizedBox(width: 8)];
+    if (availableTypes.length == 1) {
+      final type = availableTypes.single;
+      return [
+        IconButton(
+          key: const ValueKey('view-score-action'),
+          tooltip: 'View ${type.label}',
+          onPressed: () => _openMusicXmlViewer(type),
+          icon: const Icon(Icons.visibility_outlined),
+        ),
+        const SizedBox(width: 8),
+      ];
+    }
+    return [
+      PopupMenuButton<MusicXmlArrangementType>(
+        key: const ValueKey('view-score-action'),
+        tooltip: 'View score',
+        icon: const Icon(Icons.visibility_outlined),
+        onSelected: _openMusicXmlViewer,
+        itemBuilder: (context) => [
+          for (final type in availableTypes)
+            PopupMenuItem(
+              value: type,
+              child: ListTile(
+                leading: Icon(
+                  type == MusicXmlArrangementType.leadSheet
+                      ? Icons.music_note_outlined
+                      : Icons.piano_outlined,
+                ),
+                title: Text(type.label),
+              ),
+            ),
+        ],
+      ),
       const SizedBox(width: 8),
     ];
   }
@@ -487,6 +547,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       selectedSong: _controller.selectedSong,
       onSongSelected: _selectSong,
       onImport: (type) => unawaited(_importMusicXml(type)),
+      onView: _openMusicXmlViewer,
       onExport: (type) => unawaited(_exportMusicXml(type)),
       onRemove: (type) => unawaited(_confirmRemoveMusicXml(type)),
     );
