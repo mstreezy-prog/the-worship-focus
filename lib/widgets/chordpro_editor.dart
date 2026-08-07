@@ -92,7 +92,11 @@ class _ChordProEditorState extends State<ChordProEditor> {
             minLines: null,
             textAlignVertical: TextAlignVertical.top,
             keyboardType: TextInputType.multiline,
-            style: const TextStyle(fontFamily: 'monospace', fontSize: 16),
+            style: const TextStyle(
+              fontFamily: 'CMG Sans',
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
             decoration: const InputDecoration(
               hintText: 'Enter ChordPro text',
               border: OutlineInputBorder(),
