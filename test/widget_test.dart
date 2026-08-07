@@ -16,7 +16,7 @@ void main() {
     expect(find.text('Amazing Grace'), findsWidgets);
     expect(find.text('ChordPro editor'), findsOneWidget);
     expect(find.text('Live preview'), findsOneWidget);
-    expect(find.byTooltip('Performance mode'), findsOneWidget);
+    expect(find.byTooltip('Live mode'), findsOneWidget);
     expect(find.byTooltip('Import ChordPro'), findsOneWidget);
     expect(find.byTooltip('Save ChordPro as'), findsOneWidget);
     expect(find.byTooltip('New song'), findsOneWidget);
@@ -26,7 +26,7 @@ void main() {
     expect(find.byKey(const ValueKey('artist-1')), findsOneWidget);
   });
 
-  testWidgets('opens performance mode', (tester) async {
+  testWidgets('opens live mode', (tester) async {
     tester.view.physicalSize = const Size(1366, 1024);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -34,10 +34,10 @@ void main() {
 
     await tester.pumpWidget(const WorshipFocusStudioApp());
 
-    await tester.tap(find.byTooltip('Performance mode'));
+    await tester.tap(find.byTooltip('Live mode'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Performance mode'), findsOneWidget);
+    expect(find.text('Live mode'), findsOneWidget);
     expect(find.byTooltip('Decrease font size'), findsOneWidget);
     expect(find.byTooltip('Increase font size'), findsOneWidget);
     expect(find.byTooltip('Start auto-scroll'), findsOneWidget);
@@ -86,5 +86,20 @@ void main() {
     expect(find.text('Lead Sheet'), findsOneWidget);
     expect(find.text('Full Piano'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('opens the service plan workspace', (tester) async {
+    tester.view.physicalSize = const Size(1366, 1024);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const WorshipFocusStudioApp());
+    await tester.tap(find.text('Service plans'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Service plans'), findsWidgets);
+    expect(find.byKey(const ValueKey('new-service-plan')), findsOneWidget);
+    expect(find.text('Create service plan'), findsOneWidget);
   });
 }

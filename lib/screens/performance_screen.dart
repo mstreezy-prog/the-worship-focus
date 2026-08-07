@@ -345,12 +345,12 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
               Row(
                 children: [
                   IconButton(
-                    tooltip: 'Close performance mode',
+                    tooltip: 'Close live mode',
                     onPressed: () => Navigator.maybePop(context),
                     icon: const Icon(Icons.close),
                   ),
                   const SizedBox(width: 8),
-                  const Text('Performance mode'),
+                  const Text('Live mode'),
                   const SizedBox(width: 12),
                   Expanded(child: title),
                   IconButton(

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../controllers/library_controller.dart';
 import '../models/music_xml_arrangement.dart';
 import '../models/performance_content.dart';
+import '../models/service_plan.dart';
 import '../models/service_packet.dart';
 import '../models/song.dart';
 import '../services/chordpro_document_service.dart';
@@ -14,6 +15,7 @@ import '../widgets/chordpro_editor.dart';
 import '../widgets/library_sidebar.dart';
 import '../widgets/music_xml_workspace.dart';
 import '../widgets/preview_panel.dart';
+import '../widgets/service_plan_workspace.dart';
 import '../widgets/song_list.dart';
 import '../widgets/song_metadata_editor.dart';
 import 'music_xml_viewer_screen.dart';
@@ -97,12 +99,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  Future<void> _exportServicePacket() async {
-    final songs = _controller.serviceSongs;
+  void _openServicePlanPerformance(ServicePlan plan) {
+    final songs = _controller.servicePlanSongs(plan);
+    if (songs.isEmpty) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => PerformanceScreen(songs: songs, initialIndex: 0),
+        fullscreenDialog: true,
+      ),
+    );
+  }
+
+  Future<void> _exportServicePacket([ServicePlan? plan]) async {
+    final selectedPlan = plan ?? _controller.selectedServicePlan;
+    final songs = _controller.servicePlanSongs(selectedPlan);
     if (songs.isEmpty) return;
     final messenger = ScaffoldMessenger.of(context);
     final file = await ServicePacketPdf.export(
-      ServicePacket(title: 'Sunday Service Packet', songs: songs),
+      ServicePacket(
+        title: selectedPlan?.title ?? 'Service Packet',
+        songs: songs,
+      ),
     );
     if (!mounted) return;
     messenger.showSnackBar(SnackBar(content: Text('Saved: ${file.path}')));
@@ -331,7 +348,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           icon: const Icon(Icons.add),
         ),
         IconButton(
-          tooltip: 'Performance mode',
+          tooltip: 'Live mode',
           onPressed: () => _openPerformance(song),
           icon: const Icon(Icons.fullscreen),
         ),
@@ -372,7 +389,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               value: _ToolbarAction.performance,
               child: ListTile(
                 leading: Icon(Icons.fullscreen),
-                title: Text('Performance mode'),
+                title: Text('Live mode'),
               ),
             ),
             PopupMenuItem(
@@ -549,11 +566,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget _buildSection() {
     return switch (_controller.section) {
       LibrarySection.songs => _buildSongList(),
-      LibrarySection.servicePlans => const _Placeholder(
-        icon: Icons.event_note_outlined,
-        title: 'Service plans',
-        message: 'Build and rehearse service orders here.',
-      ),
+      LibrarySection.servicePlans => _buildServicePlanWorkspace(),
       LibrarySection.musicXml => _buildMusicXmlWorkspace(),
     };
   }
@@ -569,6 +582,28 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       onTranspose: _controller.setMusicXmlTranspose,
       onExport: (type) => unawaited(_exportMusicXml(type)),
       onRemove: (type) => unawaited(_confirmRemoveMusicXml(type)),
+    );
+  }
+
+  Widget _buildServicePlanWorkspace() {
+    final plan = _controller.selectedServicePlan;
+    return ServicePlanWorkspace(
+      plans: _controller.servicePlans,
+      selectedPlan: plan,
+      planSongs: _controller.servicePlanSongs(plan),
+      librarySongs: _controller.songs,
+      onPlanSelected: _controller.selectServicePlan,
+      onCreatePlan: _controller.createServicePlan,
+      onRenamePlan: _controller.renameSelectedServicePlan,
+      onDeletePlan: _controller.deleteServicePlan,
+      onAddSong: _controller.addSongToServicePlan,
+      onRemoveSong: _controller.removeSongFromServicePlan,
+      onReorderSongs: _controller.reorderServiceSongs,
+      onPerform: () {
+        final selected = _controller.selectedServicePlan;
+        if (selected != null) _openServicePlanPerformance(selected);
+      },
+      onExport: () => unawaited(_exportServicePacket(plan)),
     );
   }
 
@@ -654,37 +689,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _Placeholder extends StatelessWidget {
-  const _Placeholder({
-    required this.icon,
-    required this.title,
-    required this.message,
-  });
-
-  final IconData icon;
-  final String title;
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 56),
-            const SizedBox(height: 16),
-            Text(title, style: Theme.of(context).textTheme.headlineSmall),
-            const SizedBox(height: 8),
-            Text(message, textAlign: TextAlign.center),
-          ],
-        ),
       ),
     );
   }

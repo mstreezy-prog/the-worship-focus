@@ -144,7 +144,7 @@ class _MusicXmlViewerScreenState extends State<MusicXmlViewerScreen> {
             icon: const Icon(Icons.zoom_in),
           ),
           IconButton(
-            tooltip: 'Enter score performance mode',
+            tooltip: 'Go live with score',
             onPressed: _openPerformance,
             icon: const Icon(Icons.fullscreen),
           ),

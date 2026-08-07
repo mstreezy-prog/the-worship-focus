@@ -1,8 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:worship_focus_studio/controllers/library_controller.dart';
 import 'package:worship_focus_studio/models/music_xml_arrangement.dart';
+import 'package:worship_focus_studio/models/service_plan.dart';
 import 'package:worship_focus_studio/models/song.dart';
 import 'package:worship_focus_studio/services/chordpro_document_service.dart';
+import 'package:worship_focus_studio/services/service_plan_repository.dart';
+import 'package:worship_focus_studio/services/service_plan_store.dart';
 import 'package:worship_focus_studio/services/song_repository.dart';
 import 'package:worship_focus_studio/services/song_store.dart';
 
@@ -15,6 +18,18 @@ class _MemorySongStore implements SongStore {
   @override
   Future<void> writeSongs(List<Song> songs) async {
     savedSongs = List.of(songs);
+  }
+}
+
+class _MemoryServicePlanStore implements ServicePlanStore {
+  List<ServicePlan>? savedPlans;
+
+  @override
+  Future<List<ServicePlan>?> readPlans() async => savedPlans;
+
+  @override
+  Future<void> writePlans(List<ServicePlan> plans) async {
+    savedPlans = List.of(plans);
   }
 }
 
@@ -56,9 +71,11 @@ void main() {
 
   test('autosaves edits and restores them in a new controller', () async {
     final store = _MemorySongStore();
+    final planStore = _MemoryServicePlanStore();
     final repository = SongRepository(store: store);
     final controller = LibraryController(
       repository: repository,
+      servicePlanRepository: ServicePlanRepository(store: planStore),
       autosaveDelay: Duration.zero,
     );
     await controller.initialize();
@@ -71,6 +88,7 @@ void main() {
 
     final restored = LibraryController(
       repository: SongRepository(store: store),
+      servicePlanRepository: ServicePlanRepository(store: planStore),
     );
     await restored.initialize();
     expect(restored.selectedSong!.chordPro, '[F]Persisted edit');
@@ -142,6 +160,48 @@ void main() {
     expect(controller.selectedSong!.fullPiano!.sourceXml, sourceXml);
     await controller.flushPendingSave();
     controller.dispose();
+  });
+
+  test('saves a service plan in its chosen song order', () async {
+    final songStore = _MemorySongStore();
+    final planStore = _MemoryServicePlanStore();
+    final controller = LibraryController(
+      repository: SongRepository(store: songStore),
+      servicePlanRepository: ServicePlanRepository(store: planStore),
+      autosaveDelay: const Duration(days: 1),
+    );
+    final firstSong = controller.songs[0];
+    final secondSong = controller.songs[1];
+
+    final plan = controller.createServicePlan(title: 'Sunday Morning');
+    controller.addSongToServicePlan(firstSong);
+    controller.addSongToServicePlan(secondSong);
+    controller.reorderServiceSongs(1, 0);
+    controller.renameSelectedServicePlan('August 9 Service');
+    await controller.flushPendingSave();
+
+    expect(controller.selectedServicePlan!.title, 'August 9 Service');
+    expect(controller.serviceSongs.map((song) => song.id), [
+      secondSong.id,
+      firstSong.id,
+    ]);
+    expect(planStore.savedPlans!.single.id, plan.id);
+
+    final restored = LibraryController(
+      repository: SongRepository(store: songStore),
+      servicePlanRepository: ServicePlanRepository(store: planStore),
+    );
+    await restored.initialize();
+    expect(restored.servicePlans.single.title, 'August 9 Service');
+    expect(restored.serviceSongs.map((song) => song.id), [
+      secondSong.id,
+      firstSong.id,
+    ]);
+
+    controller.deleteSong(secondSong);
+    expect(controller.serviceSongs.map((song) => song.id), [firstSong.id]);
+    controller.dispose();
+    restored.dispose();
   });
 
   test(

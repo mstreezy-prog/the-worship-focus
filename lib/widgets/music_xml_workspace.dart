@@ -99,7 +99,7 @@ class MusicXmlWorkspace extends StatelessWidget {
                         FilledButton.tonalIcon(
                           onPressed: () => onPerform(type),
                           icon: const Icon(Icons.fullscreen),
-                          label: Text('Perform ${type.label}'),
+                          label: Text('Go live: ${type.label}'),
                         ),
                     ],
                   ),
@@ -354,7 +354,7 @@ class _ArrangementCard extends StatelessWidget {
                   FilledButton.tonalIcon(
                     onPressed: onPerform,
                     icon: const Icon(Icons.fullscreen),
-                    label: const Text('Perform'),
+                    label: const Text('Go live'),
                   ),
                   OutlinedButton.icon(
                     onPressed: onExport,

@@ -124,7 +124,7 @@ void main() {
     expect(find.byTooltip('Zoom out'), findsOneWidget);
     expect(find.byTooltip('Fit score'), findsOneWidget);
     expect(find.byTooltip('Zoom in'), findsOneWidget);
-    expect(find.byTooltip('Enter score performance mode'), findsOneWidget);
+    expect(find.byTooltip('Go live with score'), findsOneWidget);
     expect(find.text('Lead Sheet'), findsOneWidget);
     expect(find.text('Full Piano'), findsOneWidget);
     expect(find.byTooltip('Transpose score down'), findsOneWidget);
@@ -191,7 +191,7 @@ void main() {
     );
 
     await tester.tap(find.text('Open Full Piano'));
-    await tester.tap(find.text('Perform Lead Sheet'));
+    await tester.tap(find.text('Go live: Lead Sheet'));
     await tester.tap(find.byTooltip('Transpose Lead Sheet down'));
 
     expect(openedType, MusicXmlArrangementType.fullPiano);
@@ -225,7 +225,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
 
-      expect(find.text('Performance mode'), findsOneWidget);
+      expect(find.text('Live mode'), findsOneWidget);
       expect(find.textContaining('D major'), findsOneWidget);
       expect(find.text('ChordPro'), findsOneWidget);
       expect(find.text('Lead Sheet'), findsWidgets);

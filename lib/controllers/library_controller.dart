@@ -3,11 +3,13 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../models/music_xml_arrangement.dart';
+import '../models/service_plan.dart';
 import '../models/song.dart';
 import '../services/chord_transposer.dart';
 import '../services/chordpro_document_service.dart';
 import '../services/chordpro_metadata.dart';
 import '../services/music_xml_transposer.dart';
+import '../services/service_plan_repository.dart';
 import '../services/song_repository.dart';
 
 enum LibrarySection { songs, servicePlans, musicXml }
@@ -19,17 +21,24 @@ enum SongSort { title, artist }
 class LibraryController extends ChangeNotifier {
   LibraryController({
     SongRepository? repository,
+    ServicePlanRepository? servicePlanRepository,
     this.autosaveDelay = const Duration(milliseconds: 600),
-  }) : _repository = repository ?? SongRepository() {
+  }) : _repository = repository ?? SongRepository(),
+       _servicePlanRepository =
+           servicePlanRepository ?? ServicePlanRepository() {
     _songs = _repository.getAll().toList();
+    _servicePlans = _servicePlanRepository.getAll().toList();
     _selectedSong = _songs.firstOrNull;
+    _selectedServicePlan = _servicePlans.firstOrNull;
   }
 
   final SongRepository _repository;
+  final ServicePlanRepository _servicePlanRepository;
   final Duration autosaveDelay;
   late final List<Song> _songs;
-  final Set<String> _serviceSongIds = <String>{};
+  late final List<ServicePlan> _servicePlans;
   Song? _selectedSong;
+  ServicePlan? _selectedServicePlan;
   LibrarySection _section = LibrarySection.songs;
   LibrarySaveState _saveState = LibrarySaveState.loading;
   String? _saveError;
@@ -47,10 +56,22 @@ class LibraryController extends ChangeNotifier {
   String get searchQuery => _searchQuery;
   SongSort get songSort => _songSort;
   bool get sortAscending => _sortAscending;
-  Set<String> get serviceSongIds => Set.unmodifiable(_serviceSongIds);
-  List<Song> get serviceSongs => _songs
-      .where((song) => _serviceSongIds.contains(song.id))
-      .toList(growable: false);
+  List<ServicePlan> get servicePlans => List.unmodifiable(_servicePlans);
+  ServicePlan? get selectedServicePlan => _selectedServicePlan;
+  Set<String> get serviceSongIds => Set.unmodifiable(
+    (_selectedServicePlan?.songIds ?? const <String>[]).toSet(),
+  );
+  List<Song> get serviceSongs => servicePlanSongs(_selectedServicePlan);
+
+  List<Song> servicePlanSongs(ServicePlan? plan) {
+    if (plan == null) return const <Song>[];
+    final songsById = {for (final song in _songs) song.id: song};
+    return plan.songIds
+        .map((id) => songsById[id])
+        .whereType<Song>()
+        .toList(growable: false);
+  }
+
   List<Song> get visibleSongs {
     final query = _searchQuery.trim().toLowerCase();
     final visible = _songs.where((song) {
@@ -80,12 +101,21 @@ class LibraryController extends ChangeNotifier {
     notifyListeners();
     try {
       final selectedId = _selectedSong?.id;
+      final selectedPlanId = _selectedServicePlan?.id;
       final loaded = await _repository.load();
+      final loadedPlans = await _servicePlanRepository.load();
       _songs
         ..clear()
         ..addAll(loaded);
+      _servicePlans
+        ..clear()
+        ..addAll(loadedPlans);
       _selectedSong = _songs.where((song) => song.id == selectedId).firstOrNull;
       _selectedSong ??= _songs.firstOrNull;
+      _selectedServicePlan = _servicePlans
+          .where((plan) => plan.id == selectedPlanId)
+          .firstOrNull;
+      _selectedServicePlan ??= _servicePlans.firstOrNull;
       _saveState = LibrarySaveState.saved;
       _saveError = null;
     } on Object catch (error) {
@@ -238,10 +268,85 @@ class LibraryController extends ChangeNotifier {
   }
 
   void toggleServiceSong(Song song) {
-    _serviceSongIds.contains(song.id)
-        ? _serviceSongIds.remove(song.id)
-        : _serviceSongIds.add(song.id);
+    final plan =
+        _selectedServicePlan ?? createServicePlan(selectSection: false);
+    if (plan.songIds.contains(song.id)) {
+      removeSongFromServicePlan(song);
+    } else {
+      addSongToServicePlan(song);
+    }
+  }
+
+  ServicePlan createServicePlan({String? title, bool selectSection = true}) {
+    final plan = ServicePlan(
+      id: 'plan-${DateTime.now().microsecondsSinceEpoch}',
+      title: title?.trim().isNotEmpty == true
+          ? title!.trim()
+          : 'New Service Plan',
+      date: DateTime.now(),
+      songIds: const <String>[],
+    );
+    _servicePlans.add(plan);
+    _servicePlanRepository.add(plan);
+    _selectedServicePlan = plan;
+    if (selectSection) _section = LibrarySection.servicePlans;
+    _scheduleAutosave();
+    return plan;
+  }
+
+  void selectServicePlan(ServicePlan plan) {
+    if (_selectedServicePlan?.id == plan.id) return;
+    _selectedServicePlan = plan;
     notifyListeners();
+  }
+
+  void renameSelectedServicePlan(String value) {
+    final plan = _selectedServicePlan;
+    final title = value.trim();
+    if (plan == null || title.isEmpty || title == plan.title) return;
+    _replaceServicePlan(plan.copyWith(title: title));
+  }
+
+  void deleteServicePlan(ServicePlan plan) {
+    final index = _servicePlans.indexWhere(
+      (candidate) => candidate.id == plan.id,
+    );
+    if (index == -1) return;
+    _servicePlans.removeAt(index);
+    _servicePlanRepository.delete(plan.id);
+    if (_selectedServicePlan?.id == plan.id) {
+      _selectedServicePlan = _servicePlans.isEmpty
+          ? null
+          : _servicePlans[index.clamp(0, _servicePlans.length - 1).toInt()];
+    }
+    _scheduleAutosave();
+  }
+
+  void addSongToServicePlan(Song song) {
+    final plan =
+        _selectedServicePlan ?? createServicePlan(selectSection: false);
+    if (plan.songIds.contains(song.id)) return;
+    _replaceServicePlan(plan.copyWith(songIds: [...plan.songIds, song.id]));
+  }
+
+  void removeSongFromServicePlan(Song song) {
+    final plan = _selectedServicePlan;
+    if (plan == null || !plan.songIds.contains(song.id)) return;
+    _replaceServicePlan(
+      plan.copyWith(
+        songIds: plan.songIds.where((id) => id != song.id).toList(),
+      ),
+    );
+  }
+
+  void reorderServiceSongs(int oldIndex, int newIndex) {
+    final plan = _selectedServicePlan;
+    if (plan == null || oldIndex < 0 || oldIndex >= plan.songIds.length) return;
+    if (newIndex < 0 || newIndex >= plan.songIds.length) return;
+    final ids = List<String>.of(plan.songIds);
+    final id = ids.removeAt(oldIndex);
+    ids.insert(newIndex, id);
+    _replaceServicePlan(plan.copyWith(songIds: ids));
   }
 
   Song addImportedSong(ImportedChordPro document) {
@@ -293,7 +398,16 @@ class LibraryController extends ChangeNotifier {
     if (index == -1) return;
     _repository.delete(song.id);
     _songs.removeAt(index);
-    _serviceSongIds.remove(song.id);
+    for (final plan in List<ServicePlan>.of(_servicePlans)) {
+      if (plan.songIds.contains(song.id)) {
+        _replaceServicePlan(
+          plan.copyWith(
+            songIds: plan.songIds.where((id) => id != song.id).toList(),
+          ),
+          scheduleSave: false,
+        );
+      }
+    }
     if (_selectedSong?.id == song.id) {
       if (_songs.isEmpty) {
         _selectedSong = null;
@@ -321,6 +435,19 @@ class LibraryController extends ChangeNotifier {
     _selectedSong = updated;
     _repository.update(updated);
     _scheduleAutosave();
+  }
+
+  void _replaceServicePlan(ServicePlan updated, {bool scheduleSave = true}) {
+    final index = _servicePlans.indexWhere((plan) => plan.id == updated.id);
+    if (index == -1) return;
+    _servicePlans[index] = updated;
+    _servicePlanRepository.update(updated);
+    if (_selectedServicePlan?.id == updated.id) {
+      _selectedServicePlan = updated;
+    }
+    if (scheduleSave) {
+      _scheduleAutosave();
+    }
   }
 
   String _uniqueTitle(String preferred) {
@@ -351,7 +478,10 @@ class LibraryController extends ChangeNotifier {
     _saveState = LibrarySaveState.saving;
     notifyListeners();
     try {
-      await _repository.persist();
+      await Future.wait([
+        _repository.persist(),
+        _servicePlanRepository.persist(),
+      ]);
       _saveState = savingRevision == _revision
           ? LibrarySaveState.saved
           : LibrarySaveState.unsaved;
@@ -368,6 +498,7 @@ class LibraryController extends ChangeNotifier {
     _autosaveTimer?.cancel();
     if (_saveState == LibrarySaveState.unsaved) {
       unawaited(_repository.persist());
+      unawaited(_servicePlanRepository.persist());
     }
     super.dispose();
   }

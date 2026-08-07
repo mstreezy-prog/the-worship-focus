@@ -140,8 +140,8 @@ class SongList extends StatelessWidget {
                               ),
                               title: Text(
                                 inService
-                                    ? 'Remove from service'
-                                    : 'Add to service',
+                                    ? 'Remove from current plan'
+                                    : 'Add to current plan',
                               ),
                             ),
                           ),
