@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:worship_focus_studio/models/music_xml_arrangement.dart';
+import 'package:worship_focus_studio/models/performance_content.dart';
 import 'package:worship_focus_studio/models/song.dart';
 import 'package:worship_focus_studio/screens/music_xml_viewer_screen.dart';
+import 'package:worship_focus_studio/screens/performance_screen.dart';
 import 'package:worship_focus_studio/services/notation_renderer.dart';
 import 'package:worship_focus_studio/widgets/music_xml_workspace.dart';
 
@@ -112,6 +114,7 @@ void main() {
     expect(find.byTooltip('Zoom out'), findsOneWidget);
     expect(find.byTooltip('Fit score'), findsOneWidget);
     expect(find.byTooltip('Zoom in'), findsOneWidget);
+    expect(find.byTooltip('Enter score performance mode'), findsOneWidget);
     expect(find.text('Lead Sheet'), findsOneWidget);
     expect(find.text('Full Piano'), findsOneWidget);
     expect(find.byTooltip('Transpose score down'), findsOneWidget);
@@ -140,6 +143,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     MusicXmlArrangementType? openedType;
+    MusicXmlArrangementType? performedType;
     MusicXmlArrangementType? transposedType;
     int? transposedSemitones;
     final song = _songWithBothArrangements();
@@ -153,6 +157,7 @@ void main() {
             onSongSelected: (_) {},
             onImport: (_) {},
             onView: (type) => openedType = type,
+            onPerform: (type) => performedType = type,
             onTranspose: (type, semitones) {
               transposedType = type;
               transposedSemitones = semitones;
@@ -176,11 +181,60 @@ void main() {
     );
 
     await tester.tap(find.text('Open Full Piano'));
+    await tester.tap(find.text('Perform Lead Sheet'));
     await tester.tap(find.byTooltip('Transpose Lead Sheet down'));
 
     expect(openedType, MusicXmlArrangementType.fullPiano);
+    expect(performedType, MusicXmlArrangementType.leadSheet);
     expect(transposedType, MusicXmlArrangementType.leadSheet);
     expect(transposedSemitones, -1);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'score performance uses the saved key and keeps arrangement choice visible',
+    (tester) async {
+      tester.view.physicalSize = const Size(1180, 820);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final original = _songWithBothArrangements();
+      final song = original.copyWith(
+        leadSheet: original.leadSheet!.copyWith(transposeSemitones: 2),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PerformanceScreen(
+            songs: [song],
+            initialIndex: 0,
+            initialContent: PerformanceContent.leadSheet,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(find.text('Performance mode'), findsOneWidget);
+      expect(find.textContaining('D major'), findsOneWidget);
+      expect(find.text('ChordPro'), findsOneWidget);
+      expect(find.text('Lead Sheet'), findsWidgets);
+      expect(find.text('Full Piano'), findsOneWidget);
+      expect(find.byTooltip('Previous score page'), findsOneWidget);
+      expect(find.byTooltip('Next score page'), findsOneWidget);
+
+      await tester.tap(find.text('ChordPro'));
+      await tester.pump();
+      expect(find.byTooltip('Decrease font size'), findsOneWidget);
+
+      await tester.tap(find.text('Full Piano'));
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('performance-content-fullPiano')),
+        findsOneWidget,
+      );
+
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

@@ -11,6 +11,7 @@ class MusicXmlWorkspace extends StatelessWidget {
     required this.onSongSelected,
     required this.onImport,
     required this.onView,
+    required this.onPerform,
     required this.onTranspose,
     required this.onExport,
     required this.onRemove,
@@ -22,6 +23,7 @@ class MusicXmlWorkspace extends StatelessWidget {
   final ValueChanged<Song> onSongSelected;
   final ValueChanged<MusicXmlArrangementType> onImport;
   final ValueChanged<MusicXmlArrangementType> onView;
+  final ValueChanged<MusicXmlArrangementType> onPerform;
   final MusicXmlTransposeCallback onTranspose;
   final ValueChanged<MusicXmlArrangementType> onExport;
   final ValueChanged<MusicXmlArrangementType> onRemove;
@@ -93,6 +95,12 @@ class MusicXmlWorkspace extends StatelessWidget {
                           ),
                           label: Text('Open ${type.label}'),
                         ),
+                      for (final type in attachedTypes)
+                        FilledButton.tonalIcon(
+                          onPressed: () => onPerform(type),
+                          icon: const Icon(Icons.fullscreen),
+                          label: Text('Perform ${type.label}'),
+                        ),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -130,6 +138,7 @@ class MusicXmlWorkspace extends StatelessWidget {
                     arrangement: song.arrangement(type),
                     onImport: () => onImport(type),
                     onView: () => onView(type),
+                    onPerform: () => onPerform(type),
                     onExport: () => onExport(type),
                     onRemove: () => onRemove(type),
                   ),
@@ -145,7 +154,7 @@ class MusicXmlWorkspace extends StatelessWidget {
                 crossAxisCount: 2,
                 mainAxisSpacing: 16,
                 crossAxisSpacing: 16,
-                childAspectRatio: 0.88,
+                childAspectRatio: 0.78,
                 children: cards,
               );
             },
@@ -240,6 +249,7 @@ class _ArrangementCard extends StatelessWidget {
     required this.arrangement,
     required this.onImport,
     required this.onView,
+    required this.onPerform,
     required this.onExport,
     required this.onRemove,
   });
@@ -248,6 +258,7 @@ class _ArrangementCard extends StatelessWidget {
   final MusicXmlArrangement? arrangement;
   final VoidCallback onImport;
   final VoidCallback onView;
+  final VoidCallback onPerform;
   final VoidCallback onExport;
   final VoidCallback onRemove;
 
@@ -339,6 +350,11 @@ class _ArrangementCard extends StatelessWidget {
                     onPressed: onView,
                     icon: const Icon(Icons.visibility_outlined),
                     label: const Text('View Score'),
+                  ),
+                  FilledButton.tonalIcon(
+                    onPressed: onPerform,
+                    icon: const Icon(Icons.fullscreen),
+                    label: const Text('Perform'),
                   ),
                   OutlinedButton.icon(
                     onPressed: onExport,

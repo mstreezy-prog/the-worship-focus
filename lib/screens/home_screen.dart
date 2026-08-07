@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../controllers/library_controller.dart';
 import '../models/music_xml_arrangement.dart';
+import '../models/performance_content.dart';
 import '../models/service_packet.dart';
 import '../models/song.dart';
 import '../services/chordpro_document_service.dart';
@@ -76,7 +77,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _controller.selectSong(song);
   }
 
-  void _openPerformance(Song song) {
+  void _openPerformance(
+    Song song, {
+    PerformanceContent initialContent = PerformanceContent.chordPro,
+  }) {
     final songs = _controller.songs;
     final initialIndex = songs.indexWhere(
       (candidate) => candidate.id == song.id,
@@ -86,6 +90,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         builder: (context) => PerformanceScreen(
           songs: songs,
           initialIndex: initialIndex < 0 ? 0 : initialIndex,
+          initialContent: initialContent,
         ),
         fullscreenDialog: true,
       ),
@@ -236,6 +241,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           onTranspose: _controller.setMusicXmlTranspose,
         ),
       ),
+    );
+  }
+
+  void _openMusicXmlPerformance(MusicXmlArrangementType type) {
+    final song = _controller.selectedSong;
+    if (song == null || song.arrangement(type) == null) return;
+    _openPerformance(
+      song,
+      initialContent: PerformanceContentDetails.fromArrangement(type),
     );
   }
 
@@ -551,6 +565,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       onSongSelected: _selectSong,
       onImport: (type) => unawaited(_importMusicXml(type)),
       onView: _openMusicXmlViewer,
+      onPerform: _openMusicXmlPerformance,
       onTranspose: _controller.setMusicXmlTranspose,
       onExport: (type) => unawaited(_exportMusicXml(type)),
       onRemove: (type) => unawaited(_confirmRemoveMusicXml(type)),

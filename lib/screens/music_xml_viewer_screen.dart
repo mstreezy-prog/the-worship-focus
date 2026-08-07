@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../models/music_xml_arrangement.dart';
+import '../models/performance_content.dart';
 import '../models/song.dart';
 import '../services/music_xml_transposer.dart';
 import '../widgets/notation_score_view.dart';
+import 'performance_screen.dart';
 
 class MusicXmlViewerScreen extends StatefulWidget {
   MusicXmlViewerScreen({
@@ -35,10 +37,38 @@ class _MusicXmlViewerScreenState extends State<MusicXmlViewerScreen> {
   ];
 
   MusicXmlArrangement get _arrangement {
-    final arrangement = widget.song.arrangement(_selectedType)!;
+    return _arrangementFor(_selectedType);
+  }
+
+  MusicXmlArrangement _arrangementFor(MusicXmlArrangementType type) {
+    final arrangement = widget.song.arrangement(type)!;
     return arrangement.copyWith(
       transposeSemitones:
-          _transposeSemitones[_selectedType] ?? arrangement.transposeSemitones,
+          _transposeSemitones[type] ?? arrangement.transposeSemitones,
+    );
+  }
+
+  Song get _performanceSong => widget.song.copyWith(
+    leadSheet: widget.song.leadSheet == null
+        ? null
+        : _arrangementFor(MusicXmlArrangementType.leadSheet),
+    fullPiano: widget.song.fullPiano == null
+        ? null
+        : _arrangementFor(MusicXmlArrangementType.fullPiano),
+  );
+
+  void _openPerformance() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => PerformanceScreen(
+          songs: [_performanceSong],
+          initialIndex: 0,
+          initialContent: PerformanceContentDetails.fromArrangement(
+            _selectedType,
+          ),
+        ),
+        fullscreenDialog: true,
+      ),
     );
   }
 
@@ -112,6 +142,11 @@ class _MusicXmlViewerScreenState extends State<MusicXmlViewerScreen> {
             tooltip: 'Zoom in',
             onPressed: () => _zoom(1.25),
             icon: const Icon(Icons.zoom_in),
+          ),
+          IconButton(
+            tooltip: 'Enter score performance mode',
+            onPressed: _openPerformance,
+            icon: const Icon(Icons.fullscreen),
           ),
           const SizedBox(width: 8),
         ],
