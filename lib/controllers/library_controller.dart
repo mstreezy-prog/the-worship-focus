@@ -5,8 +5,9 @@ import 'package:flutter/foundation.dart';
 import '../models/music_xml_arrangement.dart';
 import '../models/song.dart';
 import '../services/chord_transposer.dart';
-import '../services/chordpro_metadata.dart';
 import '../services/chordpro_document_service.dart';
+import '../services/chordpro_metadata.dart';
+import '../services/music_xml_transposer.dart';
 import '../services/song_repository.dart';
 
 enum LibrarySection { songs, servicePlans, musicXml }
@@ -217,6 +218,23 @@ class LibraryController extends ChangeNotifier {
       MusicXmlArrangementType.leadSheet => song.copyWith(clearLeadSheet: true),
       MusicXmlArrangementType.fullPiano => song.copyWith(clearFullPiano: true),
     });
+  }
+
+  void setMusicXmlTranspose(MusicXmlArrangementType type, int semitones) {
+    final song = _selectedSong;
+    final arrangement = song?.arrangement(type);
+    if (song == null || arrangement == null) return;
+    final boundedSemitones = semitones
+        .clamp(
+          MusicXmlTransposer.minimumSemitones,
+          MusicXmlTransposer.maximumSemitones,
+        )
+        .toInt();
+    if (arrangement.transposeSemitones == boundedSemitones) return;
+    setMusicXmlArrangement(
+      type,
+      arrangement.copyWith(transposeSemitones: boundedSemitones),
+    );
   }
 
   void toggleServiceSong(Song song) {

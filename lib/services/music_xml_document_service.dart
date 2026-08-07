@@ -7,6 +7,7 @@ import 'package:share_plus/share_plus.dart' hide XFile;
 import 'package:xml/xml.dart';
 
 import '../models/music_xml_arrangement.dart';
+import 'music_xml_transposer.dart';
 
 const musicXmlTypeGroup = XTypeGroup(
   label: 'MusicXML files',
@@ -106,6 +107,15 @@ class MusicXmlDocumentService {
     required MusicXmlArrangementType type,
     required MusicXmlArrangement arrangement,
   }) {
+    final exportArrangement = arrangement.transposeSemitones == 0
+        ? arrangement
+        : arrangement.copyWith(
+            sourceXml: MusicXmlTransposer.transpose(
+              arrangement.sourceXml,
+              arrangement.transposeSemitones,
+            ),
+            transposeSemitones: 0,
+          );
     final extension = arrangement.isCompressed ? 'mxl' : 'musicxml';
     final mimeType = arrangement.isCompressed
         ? MusicXmlDocumentCodec.compressedMimeType
@@ -113,7 +123,7 @@ class MusicXmlDocumentService {
     return _gateway.saveMusicXml(
       suggestedName:
           '${_safeFileName(songTitle)}-${type.fileNameSegment}.$extension',
-      bytes: MusicXmlDocumentCodec.encode(arrangement),
+      bytes: MusicXmlDocumentCodec.encode(exportArrangement),
       mimeType: mimeType,
     );
   }

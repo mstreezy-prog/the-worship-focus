@@ -93,11 +93,17 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
+    MusicXmlArrangementType? transposedType;
+    int? transposedSemitones;
     await tester.pumpWidget(
       MaterialApp(
         home: MusicXmlViewerScreen(
           song: _songWithBothArrangements(),
           initialType: MusicXmlArrangementType.leadSheet,
+          onTranspose: (type, semitones) {
+            transposedType = type;
+            transposedSemitones = semitones;
+          },
         ),
       ),
     );
@@ -108,6 +114,16 @@ void main() {
     expect(find.byTooltip('Zoom in'), findsOneWidget);
     expect(find.text('Lead Sheet'), findsOneWidget);
     expect(find.text('Full Piano'), findsOneWidget);
+    expect(find.byTooltip('Transpose score down'), findsOneWidget);
+    expect(find.byTooltip('Transpose score up'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Transpose score up'));
+    await tester.pump();
+
+    expect(transposedType, MusicXmlArrangementType.leadSheet);
+    expect(transposedSemitones, 1);
+    expect(find.text('Db major'), findsOneWidget);
+    expect(find.text('+1 semitone'), findsOneWidget);
 
     await tester.tap(find.text('Full Piano'));
     await tester.pump();
@@ -124,6 +140,8 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     MusicXmlArrangementType? openedType;
+    MusicXmlArrangementType? transposedType;
+    int? transposedSemitones;
     final song = _songWithBothArrangements();
 
     await tester.pumpWidget(
@@ -135,6 +153,10 @@ void main() {
             onSongSelected: (_) {},
             onImport: (_) {},
             onView: (type) => openedType = type,
+            onTranspose: (type, semitones) {
+              transposedType = type;
+              transposedSemitones = semitones;
+            },
             onExport: (_) {},
             onRemove: (_) {},
           ),
@@ -144,10 +166,21 @@ void main() {
 
     expect(find.text('Open Lead Sheet').hitTestable(), findsOneWidget);
     expect(find.text('Open Full Piano').hitTestable(), findsOneWidget);
+    expect(
+      find.byTooltip('Transpose Lead Sheet down').hitTestable(),
+      findsOneWidget,
+    );
+    expect(
+      find.byTooltip('Transpose Full Piano up').hitTestable(),
+      findsOneWidget,
+    );
 
     await tester.tap(find.text('Open Full Piano'));
+    await tester.tap(find.byTooltip('Transpose Lead Sheet down'));
 
     expect(openedType, MusicXmlArrangementType.fullPiano);
+    expect(transposedType, MusicXmlArrangementType.leadSheet);
+    expect(transposedSemitones, -1);
     expect(tester.takeException(), isNull);
   });
 }

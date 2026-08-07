@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/music_xml_arrangement.dart';
 import '../models/song.dart';
+import '../services/music_xml_transposer.dart';
 
 class MusicXmlWorkspace extends StatelessWidget {
   const MusicXmlWorkspace({
@@ -10,6 +11,7 @@ class MusicXmlWorkspace extends StatelessWidget {
     required this.onSongSelected,
     required this.onImport,
     required this.onView,
+    required this.onTranspose,
     required this.onExport,
     required this.onRemove,
     super.key,
@@ -20,6 +22,7 @@ class MusicXmlWorkspace extends StatelessWidget {
   final ValueChanged<Song> onSongSelected;
   final ValueChanged<MusicXmlArrangementType> onImport;
   final ValueChanged<MusicXmlArrangementType> onView;
+  final MusicXmlTransposeCallback onTranspose;
   final ValueChanged<MusicXmlArrangementType> onExport;
   final ValueChanged<MusicXmlArrangementType> onRemove;
 
@@ -92,6 +95,25 @@ class MusicXmlWorkspace extends StatelessWidget {
                         ),
                     ],
                   ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Transpose',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      for (final type in attachedTypes)
+                        _ArrangementKeyControl(
+                          type: type,
+                          arrangement: song.arrangement(type)!,
+                          onChanged: (semitones) =>
+                              onTranspose(type, semitones),
+                        ),
+                    ],
+                  ),
                 ],
               ],
             ),
@@ -134,6 +156,84 @@ class MusicXmlWorkspace extends StatelessWidget {
   }
 }
 
+class _ArrangementKeyControl extends StatelessWidget {
+  const _ArrangementKeyControl({
+    required this.type,
+    required this.arrangement,
+    required this.onChanged,
+  });
+
+  final MusicXmlArrangementType type;
+  final MusicXmlArrangement arrangement;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final semitones = arrangement.transposeSemitones;
+    final keySignature = MusicXmlTransposer.keySignature(
+      arrangement.sourceXml,
+      semitones: semitones,
+    );
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 360),
+      child: Card.outlined(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+          child: Row(
+            children: [
+              IconButton.outlined(
+                tooltip: 'Transpose ${type.label} down',
+                onPressed: semitones > MusicXmlTransposer.minimumSemitones
+                    ? () => onChanged(semitones - 1)
+                    : null,
+                icon: const Icon(Icons.remove),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      type.label,
+                      style: Theme.of(context).textTheme.labelLarge,
+                    ),
+                    Text(
+                      keySignature?.label ??
+                          MusicXmlTransposer.offsetLabel(semitones),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (semitones != 0)
+                      Text(
+                        MusicXmlTransposer.offsetLabel(semitones),
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              IconButton.outlined(
+                tooltip: 'Transpose ${type.label} up',
+                onPressed: semitones < MusicXmlTransposer.maximumSemitones
+                    ? () => onChanged(semitones + 1)
+                    : null,
+                icon: const Icon(Icons.add),
+              ),
+              if (semitones != 0)
+                IconButton(
+                  tooltip: 'Reset ${type.label} key',
+                  onPressed: () => onChanged(0),
+                  icon: const Icon(Icons.restart_alt),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ArrangementCard extends StatelessWidget {
   const _ArrangementCard({
     required this.type,
@@ -154,6 +254,12 @@ class _ArrangementCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final document = arrangement;
+    final keySignature = document == null
+        ? null
+        : MusicXmlTransposer.keySignature(
+            document.sourceXml,
+            semitones: document.transposeSemitones,
+          );
     return Card.outlined(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -213,7 +319,9 @@ class _ArrangementCard extends StatelessWidget {
                       '${document.partCount ?? 0} score part${document.partCount == 1 ? '' : 's'} • ${document.isCompressed ? 'Compressed MXL' : 'MusicXML'}',
                     ),
                     const SizedBox(height: 8),
-                    const Text('Key: Original'),
+                    Text(
+                      'Key: ${keySignature?.label ?? MusicXmlTransposer.offsetLabel(document.transposeSemitones)}',
+                    ),
                   ],
                 ),
               ),

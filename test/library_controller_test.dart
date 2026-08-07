@@ -112,6 +112,38 @@ void main() {
     controller.dispose();
   });
 
+  test('stores independent MusicXML transposition offsets', () async {
+    final controller = LibraryController(
+      repository: SongRepository(store: _MemorySongStore()),
+      autosaveDelay: const Duration(days: 1),
+    );
+    const sourceXml = '<score-partwise/>';
+    controller.setMusicXmlArrangement(
+      MusicXmlArrangementType.leadSheet,
+      const MusicXmlArrangement(
+        fileName: 'lead.musicxml',
+        sourceXml: sourceXml,
+      ),
+    );
+    controller.setMusicXmlArrangement(
+      MusicXmlArrangementType.fullPiano,
+      const MusicXmlArrangement(
+        fileName: 'piano.musicxml',
+        sourceXml: sourceXml,
+      ),
+    );
+
+    controller.setMusicXmlTranspose(MusicXmlArrangementType.leadSheet, 2);
+    controller.setMusicXmlTranspose(MusicXmlArrangementType.fullPiano, -3);
+
+    expect(controller.selectedSong!.leadSheet!.transposeSemitones, 2);
+    expect(controller.selectedSong!.fullPiano!.transposeSemitones, -3);
+    expect(controller.selectedSong!.leadSheet!.sourceXml, sourceXml);
+    expect(controller.selectedSong!.fullPiano!.sourceXml, sourceXml);
+    await controller.flushPendingSave();
+    controller.dispose();
+  });
+
   test(
     'creates, edits, duplicates, filters, sorts, and deletes songs',
     () async {

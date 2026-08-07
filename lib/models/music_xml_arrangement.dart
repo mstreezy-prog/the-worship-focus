@@ -1,5 +1,8 @@
 enum MusicXmlArrangementType { leadSheet, fullPiano }
 
+typedef MusicXmlTransposeCallback =
+    void Function(MusicXmlArrangementType type, int semitones);
+
 extension MusicXmlArrangementTypeLabel on MusicXmlArrangementType {
   String get label => switch (this) {
     MusicXmlArrangementType.leadSheet => 'Lead Sheet',

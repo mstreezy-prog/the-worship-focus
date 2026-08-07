@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../models/music_xml_arrangement.dart';
 import '../models/song.dart';
+import '../services/music_xml_transposer.dart';
 import '../widgets/notation_score_view.dart';
 
 class MusicXmlViewerScreen extends StatefulWidget {
   MusicXmlViewerScreen({
     required this.song,
     required this.initialType,
+    required this.onTranspose,
     super.key,
   }) : assert(
          song.leadSheet != null || song.fullPiano != null,
@@ -16,6 +18,7 @@ class MusicXmlViewerScreen extends StatefulWidget {
 
   final Song song;
   final MusicXmlArrangementType initialType;
+  final MusicXmlTransposeCallback onTranspose;
 
   @override
   State<MusicXmlViewerScreen> createState() => _MusicXmlViewerScreenState();
@@ -24,14 +27,20 @@ class MusicXmlViewerScreen extends StatefulWidget {
 class _MusicXmlViewerScreenState extends State<MusicXmlViewerScreen> {
   final TransformationController _transformation = TransformationController();
   late MusicXmlArrangementType _selectedType;
+  late final Map<MusicXmlArrangementType, int> _transposeSemitones;
 
   List<MusicXmlArrangementType> get _availableTypes => [
     for (final type in MusicXmlArrangementType.values)
       if (widget.song.arrangement(type) != null) type,
   ];
 
-  MusicXmlArrangement get _arrangement =>
-      widget.song.arrangement(_selectedType)!;
+  MusicXmlArrangement get _arrangement {
+    final arrangement = widget.song.arrangement(_selectedType)!;
+    return arrangement.copyWith(
+      transposeSemitones:
+          _transposeSemitones[_selectedType] ?? arrangement.transposeSemitones,
+    );
+  }
 
   @override
   void initState() {
@@ -39,6 +48,10 @@ class _MusicXmlViewerScreenState extends State<MusicXmlViewerScreen> {
     _selectedType = widget.song.arrangement(widget.initialType) != null
         ? widget.initialType
         : _availableTypes.first;
+    _transposeSemitones = {
+      for (final type in _availableTypes)
+        type: widget.song.arrangement(type)!.transposeSemitones,
+    };
   }
 
   @override
@@ -63,6 +76,19 @@ class _MusicXmlViewerScreenState extends State<MusicXmlViewerScreen> {
 
   void _fitScore() {
     _transformation.value = Matrix4.identity();
+  }
+
+  void _setTranspose(int semitones) {
+    final boundedSemitones = semitones
+        .clamp(
+          MusicXmlTransposer.minimumSemitones,
+          MusicXmlTransposer.maximumSemitones,
+        )
+        .toInt();
+    if (_arrangement.transposeSemitones == boundedSemitones) return;
+    setState(() => _transposeSemitones[_selectedType] = boundedSemitones);
+    widget.onTranspose(_selectedType, boundedSemitones);
+    _fitScore();
   }
 
   @override
@@ -97,6 +123,7 @@ class _MusicXmlViewerScreenState extends State<MusicXmlViewerScreen> {
             availableTypes: _availableTypes,
             selectedType: _selectedType,
             onSelected: _selectType,
+            onTranspose: _setTranspose,
           ),
           const Divider(height: 1),
           Expanded(
@@ -130,8 +157,13 @@ class _MusicXmlViewerScreenState extends State<MusicXmlViewerScreen> {
                         ],
                       ),
                       child: NotationScoreView(
-                        key: ValueKey(_selectedType),
-                        musicXml: arrangement.sourceXml,
+                        key: ValueKey(
+                          '${_selectedType.name}-${arrangement.transposeSemitones}',
+                        ),
+                        musicXml: MusicXmlTransposer.transpose(
+                          arrangement.sourceXml,
+                          arrangement.transposeSemitones,
+                        ),
                         staffSpace: 9,
                       ),
                     ),
@@ -152,12 +184,14 @@ class _ViewerHeader extends StatelessWidget {
     required this.availableTypes,
     required this.selectedType,
     required this.onSelected,
+    required this.onTranspose,
   });
 
   final MusicXmlArrangement arrangement;
   final List<MusicXmlArrangementType> availableTypes;
   final MusicXmlArrangementType selectedType;
   final ValueChanged<MusicXmlArrangementType> onSelected;
+  final ValueChanged<int> onTranspose;
 
   @override
   Widget build(BuildContext context) {
@@ -189,25 +223,98 @@ class _ViewerHeader extends StatelessWidget {
             onSelectionChanged: (selection) => onSelected(selection.first),
           )
         : Chip(label: Text(selectedType.label));
+    final keySignature = MusicXmlTransposer.keySignature(
+      arrangement.sourceXml,
+      semitones: arrangement.transposeSemitones,
+    );
+    final transposeControls = _TransposeControls(
+      keyLabel: keySignature?.label,
+      semitones: arrangement.transposeSemitones,
+      onChanged: onTranspose,
+    );
 
     return LayoutBuilder(
       builder: (context, constraints) {
         return Padding(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-          child: constraints.maxWidth < 600
-              ? Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [title, const SizedBox(height: 12), selector],
-                )
-              : Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (constraints.maxWidth < 600) ...[
+                title,
+                const SizedBox(height: 12),
+                selector,
+              ] else
+                Row(
                   children: [
                     Expanded(child: title),
                     const SizedBox(width: 16),
                     selector,
                   ],
                 ),
+              const SizedBox(height: 8),
+              transposeControls,
+            ],
+          ),
         );
       },
+    );
+  }
+}
+
+class _TransposeControls extends StatelessWidget {
+  const _TransposeControls({
+    required this.keyLabel,
+    required this.semitones,
+    required this.onChanged,
+  });
+
+  final String? keyLabel;
+  final int semitones;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Text('Key', style: Theme.of(context).textTheme.labelLarge),
+        const SizedBox(width: 8),
+        IconButton.outlined(
+          tooltip: 'Transpose score down',
+          onPressed: semitones > MusicXmlTransposer.minimumSemitones
+              ? () => onChanged(semitones - 1)
+              : null,
+          icon: const Icon(Icons.remove),
+        ),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (keyLabel != null)
+                Text(
+                  keyLabel!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+              Text(MusicXmlTransposer.offsetLabel(semitones)),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        IconButton.outlined(
+          tooltip: 'Transpose score up',
+          onPressed: semitones < MusicXmlTransposer.maximumSemitones
+              ? () => onChanged(semitones + 1)
+              : null,
+          icon: const Icon(Icons.add),
+        ),
+        if (semitones != 0) ...[
+          const SizedBox(width: 8),
+          TextButton(onPressed: () => onChanged(0), child: const Text('Reset')),
+        ],
+      ],
     );
   }
 }

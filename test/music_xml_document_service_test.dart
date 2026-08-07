@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:worship_focus_studio/models/music_xml_arrangement.dart';
 import 'package:worship_focus_studio/services/music_xml_document_service.dart';
+import 'package:worship_focus_studio/services/music_xml_transposer.dart';
 
 const _score = '''<?xml version="1.0" encoding="UTF-8"?>
 <score-partwise version="4.0">
@@ -12,6 +13,14 @@ const _score = '''<?xml version="1.0" encoding="UTF-8"?>
     <score-part id="P1"><part-name>Piano</part-name></score-part>
   </part-list>
   <part id="P1"><measure number="1"/></part>
+</score-partwise>''';
+
+const _transposableScore = '''<score-partwise version="4.0">
+  <part-list><score-part id="P1"><part-name>Music</part-name></score-part></part-list>
+  <part id="P1"><measure number="1">
+    <attributes><key><fifths>2</fifths><mode>major</mode></key></attributes>
+    <note><pitch><step>F</step><alter>1</alter><octave>4</octave></pitch></note>
+  </measure></part>
 </score-partwise>''';
 
 class _MemoryMusicXmlGateway implements MusicXmlDocumentGateway {
@@ -182,4 +191,35 @@ void main() {
     expect(gateway.savedBytes, isNotEmpty);
     expect(path, '/documents/Grace- Live-Full-Piano.mxl');
   });
+
+  test(
+    'service exports the selected transposition without changing source',
+    () async {
+      final gateway = _MemoryMusicXmlGateway();
+      final service = MusicXmlDocumentService(gateway: gateway);
+      const arrangement = MusicXmlArrangement(
+        fileName: 'lead.musicxml',
+        sourceXml: _transposableScore,
+        transposeSemitones: 1,
+      );
+
+      await service.save(
+        songTitle: 'Transposed Song',
+        type: MusicXmlArrangementType.leadSheet,
+        arrangement: arrangement,
+      );
+
+      final exported = MusicXmlDocumentCodec.decode(
+        fileName: gateway.savedName!,
+        bytes: gateway.savedBytes!,
+      );
+      expect(
+        MusicXmlTransposer.keySignature(exported.sourceXml)?.label,
+        'Eb major',
+      );
+      expect(exported.sourceXml, contains('<step>G</step>'));
+      expect(arrangement.sourceXml, _transposableScore);
+      expect(arrangement.transposeSemitones, 1);
+    },
+  );
 }

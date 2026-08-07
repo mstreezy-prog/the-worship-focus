@@ -230,8 +230,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (song == null || song.arrangement(type) == null) return;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (context) =>
-            MusicXmlViewerScreen(song: song, initialType: type),
+        builder: (context) => MusicXmlViewerScreen(
+          song: song,
+          initialType: type,
+          onTranspose: _controller.setMusicXmlTranspose,
+        ),
       ),
     );
   }
@@ -548,6 +551,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       onSongSelected: _selectSong,
       onImport: (type) => unawaited(_importMusicXml(type)),
       onView: _openMusicXmlViewer,
+      onTranspose: _controller.setMusicXmlTranspose,
       onExport: (type) => unawaited(_exportMusicXml(type)),
       onRemove: (type) => unawaited(_confirmRemoveMusicXml(type)),
     );
