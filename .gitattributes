@@ -1,0 +1,3 @@
+# The local renderer fork preserves upstream source formatting. Its files are
+# audited separately from this application's whitespace rules.
+.third_party/flutter_notemus/** -whitespace

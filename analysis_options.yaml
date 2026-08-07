@@ -9,6 +9,13 @@
 # packages, and plugins designed to encourage good coding practices.
 include: package:flutter_lints/flutter.yaml
 
+analyzer:
+  # The local notation-renderer fork is third-party source. Its code is still
+  # compiled through the package dependency, but its upstream style lints do
+  # not belong to this application's audit.
+  exclude:
+    - .third_party/flutter_notemus/**
+
 linter:
   # The lint rules applied to this project can be customized in the
   # section below to disable rules from the `package:flutter_lints/flutter.yaml`

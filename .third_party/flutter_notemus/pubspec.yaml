@@ -1,0 +1,78 @@
+name: flutter_notemus
+description: "Local fork with improved lyric clearance for Worship Focus Studio."
+version: 2.6.0
+license: Apache-2.0
+homepage: https://github.com/alessonqueirozdev-hub
+repository: https://github.com/alessonqueirozdev-hub/flutter_notemus
+issue_tracker: https://github.com/alessonqueirozdev-hub/flutter_notemus/issues
+
+topics:
+  - flutter
+  - music
+  - notation
+  - rendering
+  - smufl
+
+screenshots:
+  - description: 'Complete music score with professional engraving, dynamics, and proper spacing'
+    path: assets/readme/Captura de tela 2025-11-06 141401.png
+  - description: 'Detailed musical elements with SMuFL glyphs, dotted notes, and breath marks'
+    path: assets/readme/Captura de tela 2025-11-06 141533.png
+
+environment:
+  sdk: ^3.8.1
+  flutter: ">=3.0.0"
+
+dependencies:
+  collection: ^1.19.1
+  flutter:
+    sdk: flutter
+  flutter_web_plugins:
+    sdk: flutter
+  xml: '>=6.5.0 <8.0.0'
+  pdf: ^3.11.1
+  printing: ^5.13.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  test: ^1.24.0
+
+# For information on the generic Dart part of this file, see the
+# following page: https://dart.dev/tools/pub/pubspec
+
+# The following section is specific to Flutter packages.
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: com.alessonqueiroz.flutternotemus
+        pluginClass: FlutterNotemusPlugin
+      ios:
+        pluginClass: FlutterNotemusPlugin
+      linux:
+        pluginClass: FlutterNotemusPlugin
+      macos:
+        pluginClass: FlutterNotemusPlugin
+      web:
+        pluginClass: FlutterNotemusWeb
+        fileName: flutter_notemus_web.dart
+      windows:
+        pluginClass: FlutterNotemusPluginCApi
+  # Expose package assets to applications that depend on this plugin.
+  assets:
+    - assets/smufl/bravura_metadata.json
+    - assets/smufl/glyphnames.json
+    - assets/gregorian/greciliae_glyphnames.json
+
+  # Declare fonts.
+  fonts:
+    # Bravura for SMuFL (CMN) rendering.
+    - family: Bravura
+      fonts:
+        - asset: assets/smufl/Bravura.otf
+    # Greciliae (SIL OFL 1.1) for Gregorian square-notation chant.
+    - family: Greciliae
+      fonts:
+        - asset: assets/gregorian/greciliae.ttf

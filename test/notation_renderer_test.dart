@@ -87,6 +87,16 @@ void main() {
     expect(document.staffCount, 2);
   });
 
+  test('score theme uses CMG Sans for readable lyrics and chord labels', () {
+    final theme = NotationRenderer.scoreTheme;
+
+    expect(theme.lyricTextStyle?.fontFamily, 'CMG Sans');
+    expect(theme.lyricTextStyle?.fontSize, 13);
+    expect(theme.expressionTextStyle?.fontFamily, 'CMG Sans');
+    expect(theme.expressionTextStyle?.fontSize, 16);
+    expect(theme.expressionTextStyle?.fontWeight, FontWeight.w700);
+  });
+
   testWidgets('viewer switches arrangements and exposes score controls', (
     tester,
   ) async {

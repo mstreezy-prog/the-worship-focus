@@ -7,6 +7,30 @@ class NotationRenderer {
 
   static Future<void>? _initialization;
 
+  /// Text treatments chosen for legibility on an iPad music stand.
+  ///
+  /// MusicXML lyric elements use [lyricTextStyle]. Harmony labels are made
+  /// renderer-readable as MusicXML direction words, so they use the
+  /// expression style until the notation package natively supports harmony.
+  static const scoreTheme = MusicScoreTheme(
+    lyricTextStyle: TextStyle(
+      fontFamily: 'CMG Sans',
+      fontSize: 13,
+      fontWeight: FontWeight.w500,
+    ),
+    expressionTextStyle: TextStyle(
+      fontFamily: 'CMG Sans',
+      fontSize: 16,
+      fontWeight: FontWeight.w700,
+      fontStyle: FontStyle.normal,
+    ),
+    chordTextStyle: TextStyle(
+      fontFamily: 'CMG Sans',
+      fontSize: 16,
+      fontWeight: FontWeight.w700,
+    ),
+  );
+
   static Future<void> initialize() async {
     final initialization = _initialization ??= _loadAssets();
     try {
@@ -42,6 +66,11 @@ class NotationDocument {
       _score.staffGroups.fold(0, (total, group) => total + group.staves.length);
 
   Widget buildView({Key? key, double staffSpace = 10}) {
-    return ScoreView(key: key, score: _score, staffSpace: staffSpace);
+    return ScoreView(
+      key: key,
+      score: _score,
+      staffSpace: staffSpace,
+      theme: NotationRenderer.scoreTheme,
+    );
   }
 }
