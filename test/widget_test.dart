@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:worship_focus_studio/main.dart';
+import 'package:worship_focus_studio/models/service_plan.dart';
+import 'package:worship_focus_studio/widgets/service_plan_workspace.dart';
 
 void main() {
   testWidgets('shows the adaptive application shell', (tester) async {
@@ -101,5 +103,53 @@ void main() {
     expect(find.text('Service plans'), findsWidgets);
     expect(find.byKey(const ValueKey('new-service-plan')), findsOneWidget);
     expect(find.text('Create service plan'), findsOneWidget);
+  });
+
+  testWidgets('changes service plans after the picker closes', (tester) async {
+    final morning = ServicePlan(
+      id: 'morning',
+      title: 'Morning Service',
+      date: DateTime.utc(2026, 8, 9),
+      songIds: const [],
+    );
+    final evening = ServicePlan(
+      id: 'evening',
+      title: 'Evening Service',
+      date: DateTime.utc(2026, 8, 9),
+      songIds: const [],
+    );
+    var selectedPlan = morning;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StatefulBuilder(
+          builder: (context, setState) => Scaffold(
+            body: ServicePlanWorkspace(
+              plans: [morning, evening],
+              selectedPlan: selectedPlan,
+              planSongs: const [],
+              librarySongs: const [],
+              onPlanSelected: (plan) => setState(() => selectedPlan = plan),
+              onCreatePlan: () {},
+              onRenamePlan: (_) {},
+              onDeletePlan: (_) {},
+              onAddSong: (_) {},
+              onRemoveSong: (_) {},
+              onReorderSongs: (_, _) {},
+              onPerform: () {},
+              onExport: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('service-plan-picker')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Evening Service'));
+    await tester.pumpAndSettle();
+
+    expect(selectedPlan, evening);
+    expect(tester.takeException(), isNull);
   });
 }

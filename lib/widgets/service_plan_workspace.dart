@@ -214,26 +214,47 @@ class _PlanToolbar extends StatelessWidget {
       children: [
         SizedBox(
           width: 280,
-          child: DropdownButtonFormField<String>(
-            key: const ValueKey('service-plan-picker'),
-            initialValue: selectedPlan.id,
-            isExpanded: true,
-            decoration: const InputDecoration(
-              labelText: 'Current plan',
-              border: OutlineInputBorder(),
-              isDense: true,
-            ),
-            items: [
-              for (final plan in plans)
-                DropdownMenuItem(
-                  value: plan.id,
-                  child: Text(plan.title, overflow: TextOverflow.ellipsis),
+          child: Semantics(
+            label: 'Current service plan',
+            child: DecoratedBox(
+              decoration: ShapeDecoration(
+                shape: RoundedRectangleBorder(
+                  side: BorderSide(
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+                  borderRadius: BorderRadius.circular(4),
                 ),
-            ],
-            onChanged: (id) {
-              final plan = plans.where((plan) => plan.id == id).firstOrNull;
-              if (plan != null) onPlanSelected(plan);
-            },
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    key: const ValueKey('service-plan-picker'),
+                    value: selectedPlan.id,
+                    isExpanded: true,
+                    items: [
+                      for (final plan in plans)
+                        DropdownMenuItem(
+                          value: plan.id,
+                          child: Text(
+                            plan.title,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                    onChanged: (id) {
+                      final plan = plans
+                          .where((plan) => plan.id == id)
+                          .firstOrNull;
+                      if (plan == null) return;
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        onPlanSelected(plan);
+                      });
+                    },
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
         OutlinedButton.icon(
