@@ -219,6 +219,7 @@ void main() {
             songs: [song],
             initialIndex: 0,
             initialContent: PerformanceContent.leadSheet,
+            songNotes: {song.id: 'Start in D; repeat the final chorus.'},
           ),
         ),
       );
@@ -226,6 +227,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
 
       expect(find.text('Live mode'), findsOneWidget);
+      expect(find.text('Start in D; repeat the final chorus.'), findsOneWidget);
       expect(find.textContaining('D major'), findsOneWidget);
       expect(find.text('ChordPro'), findsOneWidget);
       expect(find.text('Lead Sheet'), findsWidgets);

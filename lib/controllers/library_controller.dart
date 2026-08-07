@@ -284,7 +284,7 @@ class LibraryController extends ChangeNotifier {
           ? title!.trim()
           : 'New Service Plan',
       date: DateTime.now(),
-      songIds: const <String>[],
+      items: const <ServicePlanItem>[],
     );
     _servicePlans.add(plan);
     _servicePlanRepository.add(plan);
@@ -307,6 +307,18 @@ class LibraryController extends ChangeNotifier {
     _replaceServicePlan(plan.copyWith(title: title));
   }
 
+  void updateSelectedServicePlanDate(DateTime value) {
+    final plan = _selectedServicePlan;
+    final date = DateTime(value.year, value.month, value.day);
+    if (plan == null ||
+        (plan.date.year == date.year &&
+            plan.date.month == date.month &&
+            plan.date.day == date.day)) {
+      return;
+    }
+    _replaceServicePlan(plan.copyWith(date: date));
+  }
+
   void deleteServicePlan(ServicePlan plan) {
     final index = _servicePlans.indexWhere(
       (candidate) => candidate.id == plan.id,
@@ -326,7 +338,17 @@ class LibraryController extends ChangeNotifier {
     final plan =
         _selectedServicePlan ?? createServicePlan(selectSection: false);
     if (plan.songIds.contains(song.id)) return;
-    _replaceServicePlan(plan.copyWith(songIds: [...plan.songIds, song.id]));
+    _replaceServicePlan(
+      plan.copyWith(
+        items: [
+          ...plan.items,
+          ServicePlanItem.song(
+            id: 'item-${DateTime.now().microsecondsSinceEpoch}',
+            songId: song.id,
+          ),
+        ],
+      ),
+    );
   }
 
   void removeSongFromServicePlan(Song song) {
@@ -334,19 +356,71 @@ class LibraryController extends ChangeNotifier {
     if (plan == null || !plan.songIds.contains(song.id)) return;
     _replaceServicePlan(
       plan.copyWith(
-        songIds: plan.songIds.where((id) => id != song.id).toList(),
+        items: plan.items.where((item) => item.songId != song.id).toList(),
       ),
     );
   }
 
-  void reorderServiceSongs(int oldIndex, int newIndex) {
+  void addServicePlanSection(String value) {
     final plan = _selectedServicePlan;
-    if (plan == null || oldIndex < 0 || oldIndex >= plan.songIds.length) return;
-    if (newIndex < 0 || newIndex >= plan.songIds.length) return;
-    final ids = List<String>.of(plan.songIds);
-    final id = ids.removeAt(oldIndex);
-    ids.insert(newIndex, id);
-    _replaceServicePlan(plan.copyWith(songIds: ids));
+    final title = value.trim();
+    if (plan == null || title.isEmpty) return;
+    _replaceServicePlan(
+      plan.copyWith(
+        items: [
+          ...plan.items,
+          ServicePlanItem.section(
+            id: 'item-${DateTime.now().microsecondsSinceEpoch}',
+            title: title,
+          ),
+        ],
+      ),
+    );
+  }
+
+  void updateServicePlanItemNotes(ServicePlanItem item, String value) {
+    final plan = _selectedServicePlan;
+    if (plan == null || !item.isSong || item.notes == value) return;
+    _replaceServicePlan(
+      plan.copyWith(
+        items: [
+          for (final candidate in plan.items)
+            if (candidate.id == item.id)
+              candidate.copyWith(notes: value)
+            else
+              candidate,
+        ],
+      ),
+    );
+  }
+
+  void removeServicePlanItem(ServicePlanItem item) {
+    final plan = _selectedServicePlan;
+    if (plan == null ||
+        !plan.items.any((candidate) => candidate.id == item.id)) {
+      return;
+    }
+    _replaceServicePlan(
+      plan.copyWith(
+        items: plan.items
+            .where((candidate) => candidate.id != item.id)
+            .toList(),
+      ),
+    );
+  }
+
+  void reorderServicePlanItems(int oldIndex, int newIndex) {
+    final plan = _selectedServicePlan;
+    if (plan == null || oldIndex < 0 || oldIndex >= plan.items.length) return;
+    if (newIndex < 0 || newIndex >= plan.items.length) return;
+    final items = List<ServicePlanItem>.of(plan.items);
+    final item = items.removeAt(oldIndex);
+    items.insert(newIndex, item);
+    _replaceServicePlan(plan.copyWith(items: items));
+  }
+
+  void reorderServiceSongs(int oldIndex, int newIndex) {
+    reorderServicePlanItems(oldIndex, newIndex);
   }
 
   Song addImportedSong(ImportedChordPro document) {
@@ -402,7 +476,7 @@ class LibraryController extends ChangeNotifier {
       if (plan.songIds.contains(song.id)) {
         _replaceServicePlan(
           plan.copyWith(
-            songIds: plan.songIds.where((id) => id != song.id).toList(),
+            items: plan.items.where((item) => item.songId != song.id).toList(),
           ),
           scheduleSave: false,
         );

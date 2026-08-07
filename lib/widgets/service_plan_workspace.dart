@@ -7,15 +7,19 @@ class ServicePlanWorkspace extends StatelessWidget {
   const ServicePlanWorkspace({
     required this.plans,
     required this.selectedPlan,
+    required this.items,
     required this.planSongs,
     required this.librarySongs,
     required this.onPlanSelected,
     required this.onCreatePlan,
     required this.onRenamePlan,
+    required this.onChangePlanDate,
     required this.onDeletePlan,
     required this.onAddSong,
-    required this.onRemoveSong,
-    required this.onReorderSongs,
+    required this.onAddSection,
+    required this.onUpdateItemNotes,
+    required this.onRemoveItem,
+    required this.onReorderItems,
     required this.onPerform,
     required this.onExport,
     super.key,
@@ -23,15 +27,19 @@ class ServicePlanWorkspace extends StatelessWidget {
 
   final List<ServicePlan> plans;
   final ServicePlan? selectedPlan;
+  final List<ServicePlanItem> items;
   final List<Song> planSongs;
   final List<Song> librarySongs;
   final ValueChanged<ServicePlan> onPlanSelected;
   final VoidCallback onCreatePlan;
   final ValueChanged<String> onRenamePlan;
+  final ValueChanged<DateTime> onChangePlanDate;
   final ValueChanged<ServicePlan> onDeletePlan;
   final ValueChanged<Song> onAddSong;
-  final ValueChanged<Song> onRemoveSong;
-  final ReorderCallback onReorderSongs;
+  final ValueChanged<String> onAddSection;
+  final void Function(ServicePlanItem item, String notes) onUpdateItemNotes;
+  final ValueChanged<ServicePlanItem> onRemoveItem;
+  final ReorderCallback onReorderItems;
   final VoidCallback onPerform;
   final VoidCallback onExport;
 
@@ -72,48 +80,42 @@ class ServicePlanWorkspace extends StatelessWidget {
                 hasSongs: planSongs.isNotEmpty,
                 onPlanSelected: onPlanSelected,
                 onRenamePlan: onRenamePlan,
+                onChangePlanDate: onChangePlanDate,
                 onDeletePlan: () => onDeletePlan(plan),
                 onAddSong: () => _showSongPicker(context, plan),
+                onAddSection: () => _showSectionDialog(context),
                 onPerform: onPerform,
                 onExport: onExport,
               ),
               const SizedBox(height: 16),
               Expanded(
-                child: planSongs.isEmpty
+                child: items.isEmpty
                     ? _EmptyPlan(
                         message:
-                            'Add songs from your library to build this service order.',
+                            'Add songs and section headers to build this service order.',
                         actionLabel: 'Add song',
                         onCreatePlan: () => _showSongPicker(context, plan),
                       )
                     : ReorderableListView.builder(
                         key: const ValueKey('service-plan-song-list'),
                         buildDefaultDragHandles: false,
-                        itemCount: planSongs.length,
-                        onReorderItem: onReorderSongs,
+                        itemCount: items.length,
+                        onReorderItem: onReorderItems,
                         itemBuilder: (context, index) {
-                          final song = planSongs[index];
-                          return Card(
-                            key: ValueKey('service-plan-song-${song.id}'),
-                            child: ListTile(
-                              minTileHeight: 64,
-                              leading: ReorderableDragStartListener(
-                                index: index,
-                                child: const Padding(
-                                  padding: EdgeInsets.all(8),
-                                  child: Icon(Icons.drag_handle),
-                                ),
-                              ),
-                              title: Text(_songTitle(song)),
-                              subtitle: song.artist == null
-                                  ? Text('Song ${index + 1}')
-                                  : Text('${song.artist} • Song ${index + 1}'),
-                              trailing: IconButton(
-                                tooltip: 'Remove from plan',
-                                onPressed: () => onRemoveSong(song),
-                                icon: const Icon(Icons.remove_circle_outline),
-                              ),
-                            ),
+                          final item = items[index];
+                          final song = item.songId == null
+                              ? null
+                              : librarySongs
+                                    .where((song) => song.id == item.songId)
+                                    .firstOrNull;
+                          return _PlanItemCard(
+                            key: ValueKey('service-plan-item-${item.id}'),
+                            item: item,
+                            song: song,
+                            index: index,
+                            onRemove: () => onRemoveItem(item),
+                            onEditNotes: (notes) =>
+                                onUpdateItemNotes(item, notes),
                           );
                         },
                       ),
@@ -178,8 +180,150 @@ class ServicePlanWorkspace extends StatelessWidget {
     if (selected != null) onAddSong(selected);
   }
 
+  Future<void> _showSectionDialog(BuildContext context) async {
+    final controller = TextEditingController();
+    final title = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Add section header'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(
+            labelText: 'For example: Welcome or Message',
+          ),
+          onSubmitted: (value) => Navigator.pop(context, value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (title != null) onAddSection(title);
+  }
+
   static String _songTitle(Song song) =>
       song.title.trim().isEmpty ? 'Untitled Song' : song.title;
+}
+
+class _PlanItemCard extends StatelessWidget {
+  const _PlanItemCard({
+    required this.item,
+    required this.song,
+    required this.index,
+    required this.onRemove,
+    required this.onEditNotes,
+    super.key,
+  });
+
+  final ServicePlanItem item;
+  final Song? song;
+  final int index;
+  final VoidCallback onRemove;
+  final ValueChanged<String> onEditNotes;
+
+  @override
+  Widget build(BuildContext context) {
+    final isSection = item.isSection;
+    final title = isSection
+        ? item.title!
+        : song == null
+        ? 'Song no longer in library'
+        : ServicePlanWorkspace._songTitle(song!);
+    final details = isSection
+        ? 'Section header'
+        : [
+            if (song?.artist?.trim().isNotEmpty == true) song!.artist!,
+            if (item.notes.trim().isNotEmpty) item.notes.trim(),
+            if (song == null) 'Remove this entry or add the song again.',
+          ].join('\n');
+    return Card(
+      color: isSection
+          ? Theme.of(context).colorScheme.secondaryContainer
+          : null,
+      child: ListTile(
+        minTileHeight: isSection ? 56 : 72,
+        leading: ReorderableDragStartListener(
+          index: index,
+          child: const Padding(
+            padding: EdgeInsets.all(8),
+            child: Icon(Icons.drag_handle),
+          ),
+        ),
+        title: Text(
+          title,
+          style: isSection ? Theme.of(context).textTheme.titleMedium : null,
+        ),
+        subtitle: details.isEmpty
+            ? Text('Song ${index + 1}')
+            : Text(details, maxLines: 2, overflow: TextOverflow.ellipsis),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (!isSection)
+              IconButton(
+                tooltip: 'Edit song note',
+                onPressed: () => _editNotes(context),
+                icon: Icon(
+                  item.notes.trim().isEmpty
+                      ? Icons.sticky_note_2_outlined
+                      : Icons.sticky_note_2,
+                ),
+              ),
+            IconButton(
+              tooltip: isSection ? 'Remove section' : 'Remove from plan',
+              onPressed: onRemove,
+              icon: const Icon(Icons.remove_circle_outline),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _editNotes(BuildContext context) async {
+    final controller = TextEditingController(text: item.notes);
+    final notes = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          'Notes for ${song == null ? 'song' : ServicePlanWorkspace._songTitle(song!)}',
+        ),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          minLines: 3,
+          maxLines: 6,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(
+            hintText: 'For example: Start in G; repeat chorus twice.',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (notes != null) onEditNotes(notes.trim());
+  }
 }
 
 class _PlanToolbar extends StatelessWidget {
@@ -189,8 +333,10 @@ class _PlanToolbar extends StatelessWidget {
     required this.hasSongs,
     required this.onPlanSelected,
     required this.onRenamePlan,
+    required this.onChangePlanDate,
     required this.onDeletePlan,
     required this.onAddSong,
+    required this.onAddSection,
     required this.onPerform,
     required this.onExport,
   });
@@ -200,8 +346,10 @@ class _PlanToolbar extends StatelessWidget {
   final bool hasSongs;
   final ValueChanged<ServicePlan> onPlanSelected;
   final ValueChanged<String> onRenamePlan;
+  final ValueChanged<DateTime> onChangePlanDate;
   final VoidCallback onDeletePlan;
   final VoidCallback onAddSong;
+  final VoidCallback onAddSection;
   final VoidCallback onPerform;
   final VoidCallback onExport;
 
@@ -263,9 +411,23 @@ class _PlanToolbar extends StatelessWidget {
           label: const Text('Rename'),
         ),
         OutlinedButton.icon(
+          onPressed: () => _selectDate(context),
+          icon: const Icon(Icons.calendar_today_outlined),
+          label: Text(
+            MaterialLocalizations.of(
+              context,
+            ).formatMediumDate(selectedPlan.date),
+          ),
+        ),
+        OutlinedButton.icon(
           onPressed: onAddSong,
           icon: const Icon(Icons.playlist_add),
           label: const Text('Add song'),
+        ),
+        OutlinedButton.icon(
+          onPressed: onAddSection,
+          icon: const Icon(Icons.title),
+          label: const Text('Add section'),
         ),
         FilledButton.tonalIcon(
           onPressed: hasSongs ? onPerform : null,
@@ -313,6 +475,17 @@ class _PlanToolbar extends StatelessWidget {
     );
     controller.dispose();
     if (title != null) onRenamePlan(title);
+  }
+
+  Future<void> _selectDate(BuildContext context) async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: selectedPlan.date,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      helpText: 'Service date',
+    );
+    if (date != null) onChangePlanDate(date);
   }
 
   Future<void> _confirmDelete(BuildContext context) async {

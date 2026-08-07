@@ -102,9 +102,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void _openServicePlanPerformance(ServicePlan plan) {
     final songs = _controller.servicePlanSongs(plan);
     if (songs.isEmpty) return;
+    final songNotes = {
+      for (final item in plan.items)
+        if (item.songId case final songId?)
+          if (item.notes.trim().isNotEmpty) songId: item.notes.trim(),
+    };
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (context) => PerformanceScreen(songs: songs, initialIndex: 0),
+        builder: (context) => PerformanceScreen(
+          songs: songs,
+          initialIndex: 0,
+          songNotes: songNotes,
+        ),
         fullscreenDialog: true,
       ),
     );
@@ -114,11 +123,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final selectedPlan = plan ?? _controller.selectedServicePlan;
     final songs = _controller.servicePlanSongs(selectedPlan);
     if (songs.isEmpty) return;
+    final songsById = {for (final song in songs) song.id: song};
+    final serviceOrder = [
+      for (final item in selectedPlan?.items ?? const <ServicePlanItem>[])
+        if (item.isSection)
+          ServicePacketEntry.section(item.title!)
+        else if (item.songId case final songId?)
+          if (songsById[songId] case final song?)
+            ServicePacketEntry.song(song.title, notes: item.notes),
+    ];
     final messenger = ScaffoldMessenger.of(context);
     final file = await ServicePacketPdf.export(
       ServicePacket(
         title: selectedPlan?.title ?? 'Service Packet',
         songs: songs,
+        serviceOrder: serviceOrder,
       ),
     );
     if (!mounted) return;
@@ -590,15 +609,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return ServicePlanWorkspace(
       plans: _controller.servicePlans,
       selectedPlan: plan,
+      items: plan?.items ?? const [],
       planSongs: _controller.servicePlanSongs(plan),
       librarySongs: _controller.songs,
       onPlanSelected: _controller.selectServicePlan,
       onCreatePlan: _controller.createServicePlan,
       onRenamePlan: _controller.renameSelectedServicePlan,
+      onChangePlanDate: _controller.updateSelectedServicePlanDate,
       onDeletePlan: _controller.deleteServicePlan,
       onAddSong: _controller.addSongToServicePlan,
-      onRemoveSong: _controller.removeSongFromServicePlan,
-      onReorderSongs: _controller.reorderServiceSongs,
+      onAddSection: _controller.addServicePlanSection,
+      onUpdateItemNotes: _controller.updateServicePlanItemNotes,
+      onRemoveItem: _controller.removeServicePlanItem,
+      onReorderItems: _controller.reorderServicePlanItems,
       onPerform: () {
         final selected = _controller.selectedServicePlan;
         if (selected != null) _openServicePlanPerformance(selected);

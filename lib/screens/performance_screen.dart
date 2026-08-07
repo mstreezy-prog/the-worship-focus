@@ -18,12 +18,14 @@ class PerformanceScreen extends StatefulWidget {
     required this.songs,
     required this.initialIndex,
     this.initialContent = PerformanceContent.chordPro,
+    this.songNotes = const <String, String>{},
     super.key,
   }) : assert(songs.length > 0);
 
   final List<Song> songs;
   final int initialIndex;
   final PerformanceContent initialContent;
+  final Map<String, String> songNotes;
 
   @override
   State<PerformanceScreen> createState() => _PerformanceScreenState();
@@ -56,6 +58,11 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
   }
 
   PerformanceContent get _currentContent => _contentFor(_currentSong);
+
+  String? get _currentSongNote {
+    final note = widget.songNotes[_currentSong.id]?.trim();
+    return note?.isEmpty ?? true ? null : note;
+  }
 
   bool get _showingScore => _currentContent != PerformanceContent.chordPro;
 
@@ -202,6 +209,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
             : ThemeData.light(useMaterial3: true);
         final currentContent = _currentContent;
         final hasSourcePicker = _availableContent(_currentSong).length > 1;
+        final hasSongNote = _currentSongNote != null;
         return Theme(
           data: theme,
           child: Scaffold(
@@ -252,8 +260,11 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                             padding: EdgeInsets.only(
                               top: _showControls
                                   ? (index == _currentIndex && hasSourcePicker
-                                        ? 128
-                                        : 72)
+                                            ? 128
+                                            : 72) +
+                                        (index == _currentIndex && hasSongNote
+                                            ? 40
+                                            : 0)
                                   : 8,
                               bottom: _showControls ? 84 : 8,
                             ),
@@ -371,6 +382,18 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                   selected: {content},
                   onSelectionChanged: (selection) =>
                       _selectContent(selection.first),
+                ),
+              ],
+              if (_currentSongNote case final note?) ...[
+                const SizedBox(height: 6),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text(
+                    note,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall,
+                  ),
                 ),
               ],
             ],

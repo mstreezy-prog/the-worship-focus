@@ -205,6 +205,41 @@ void main() {
   });
 
   test(
+    'adds section headers and keeps notes with their song entries',
+    () async {
+      final controller = LibraryController(
+        repository: SongRepository(store: _MemorySongStore()),
+        servicePlanRepository: ServicePlanRepository(
+          store: _MemoryServicePlanStore(),
+        ),
+        autosaveDelay: const Duration(days: 1),
+      );
+      final song = controller.songs.first;
+      controller.createServicePlan(title: 'Sunday Morning');
+      controller.addServicePlanSection('Welcome');
+      controller.addSongToServicePlan(song);
+      final songItem = controller.selectedServicePlan!.items.last;
+
+      controller.updateServicePlanItemNotes(
+        songItem,
+        'Start in G; repeat the chorus.',
+      );
+      controller.updateSelectedServicePlanDate(DateTime.utc(2026, 8, 9));
+      controller.reorderServicePlanItems(1, 0);
+
+      final items = controller.selectedServicePlan!.items;
+      expect(items.first.songId, song.id);
+      expect(items.first.notes, 'Start in G; repeat the chorus.');
+      expect(items.last.title, 'Welcome');
+      expect(controller.selectedServicePlan!.date.year, 2026);
+      expect(controller.selectedServicePlan!.date.month, 8);
+      expect(controller.selectedServicePlan!.date.day, 9);
+      await controller.flushPendingSave();
+      controller.dispose();
+    },
+  );
+
+  test(
     'creates, edits, duplicates, filters, sorts, and deletes songs',
     () async {
       final controller = LibraryController(

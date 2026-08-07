@@ -27,7 +27,41 @@ class ServicePacketPdf {
               pw.SizedBox(height: 20),
               pw.Text("Service Order", style: pw.TextStyle(fontSize: 18)),
               pw.SizedBox(height: 10),
-              ...packet.songs.map((s) => pw.Text("- ${s.title}")),
+              ...(packet.serviceOrder.isEmpty
+                      ? packet.songs.map(
+                          (song) => ServicePacketEntry.song(song.title),
+                        )
+                      : packet.serviceOrder)
+                  .map(
+                    (entry) => pw.Padding(
+                      padding: const pw.EdgeInsets.only(bottom: 6),
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text(
+                            entry.isSection ? entry.title : '- ${entry.title}',
+                            style: pw.TextStyle(
+                              fontSize: entry.isSection ? 15 : 12,
+                              fontWeight: entry.isSection
+                                  ? pw.FontWeight.bold
+                                  : pw.FontWeight.normal,
+                            ),
+                          ),
+                          if (entry.notes.trim().isNotEmpty)
+                            pw.Padding(
+                              padding: const pw.EdgeInsets.only(
+                                left: 12,
+                                top: 2,
+                              ),
+                              child: pw.Text(
+                                entry.notes,
+                                style: const pw.TextStyle(fontSize: 10),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
             ],
           );
         },

@@ -32,6 +32,40 @@ void main() {
     expect(restored.songIds, plan.songIds);
   });
 
+  test('keeps section headers and song notes in their saved order', () {
+    final plan = ServicePlan(
+      id: 'plan-1',
+      title: 'Sunday Morning',
+      date: DateTime.utc(2026, 8, 9),
+      items: const [
+        ServicePlanItem.section(id: 'section-1', title: 'Welcome'),
+        ServicePlanItem.song(
+          id: 'song-1',
+          songId: 'amazing-grace',
+          notes: 'Start in G; repeat the chorus.',
+        ),
+      ],
+    );
+
+    final restored = ServicePlan.fromJson(plan.toJson());
+
+    expect(restored.items, hasLength(2));
+    expect(restored.items.first.title, 'Welcome');
+    expect(restored.items.last.songId, 'amazing-grace');
+    expect(restored.items.last.notes, 'Start in G; repeat the chorus.');
+  });
+
+  test('loads plans saved by the earlier song-only format', () {
+    final plan = ServicePlan.fromJson({
+      'id': 'plan-1',
+      'title': 'Sunday Morning',
+      'date': '2026-08-09T00:00:00.000Z',
+      'songIds': ['song-1', 'song-2'],
+    });
+
+    expect(plan.items.map((item) => item.songId), ['song-1', 'song-2']);
+  });
+
   test('repository persists its service plans', () async {
     final store = _MemoryServicePlanStore();
     final repository = ServicePlanRepository(store: store);
