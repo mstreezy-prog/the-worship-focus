@@ -15,18 +15,18 @@ class NotationRenderer {
   static const scoreTheme = MusicScoreTheme(
     lyricTextStyle: TextStyle(
       fontFamily: 'CMG Sans',
-      fontSize: 13,
+      fontSize: 17,
       fontWeight: FontWeight.w500,
     ),
     expressionTextStyle: TextStyle(
       fontFamily: 'CMG Sans',
-      fontSize: 16,
+      fontSize: 19,
       fontWeight: FontWeight.w700,
       fontStyle: FontStyle.normal,
     ),
     chordTextStyle: TextStyle(
       fontFamily: 'CMG Sans',
-      fontSize: 16,
+      fontSize: 19,
       fontWeight: FontWeight.w700,
     ),
   );
@@ -65,11 +65,18 @@ class NotationDocument {
   int get staffCount =>
       _score.staffGroups.fold(0, (total, group) => total + group.staves.length);
 
-  Widget buildView({Key? key, double staffSpace = 10}) {
+  Widget buildView({
+    Key? key,
+    double staffSpace = 10,
+    double? staffGap,
+    double? interSystemGap,
+  }) {
     return ScoreView(
       key: key,
       score: _score,
       staffSpace: staffSpace,
+      staffGap: staffGap,
+      interSystemGap: interSystemGap,
       theme: NotationRenderer.scoreTheme,
     );
   }

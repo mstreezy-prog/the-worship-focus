@@ -105,7 +105,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   void _openServicePlanPerformance(ServicePlan plan) {
-    final songs = _controller.servicePlanSongs(plan);
+    final songsById = {for (final song in _controller.songs) song.id: song};
+    final songs = [
+      for (final item in plan.items)
+        if (item.isSection)
+          Song(
+            id: 'service-section-${plan.id}-${item.id}',
+            title: item.title,
+            chordPro: item.notes.trim(),
+          )
+        else if (item.songId case final songId?)
+          ?songsById[songId],
+    ];
     if (songs.isEmpty) return;
     final songNotes = {
       for (final item in plan.items)
@@ -126,13 +137,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _exportServicePacket([ServicePlan? plan]) async {
     final selectedPlan = plan ?? _controller.selectedServicePlan;
+    if (selectedPlan == null || selectedPlan.items.isEmpty) return;
     final songs = _controller.servicePlanSongs(selectedPlan);
-    if (songs.isEmpty) return;
     final songsById = {for (final song in songs) song.id: song};
     final serviceOrder = [
-      for (final item in selectedPlan?.items ?? const <ServicePlanItem>[])
+      for (final item in selectedPlan.items)
         if (item.isSection)
-          ServicePacketEntry.section(item.title!)
+          ServicePacketEntry.section(item.title, notes: item.notes)
         else if (item.songId case final songId?)
           if (songsById[songId] case final song?)
             ServicePacketEntry.song(song.title, notes: item.notes),
@@ -140,7 +151,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final messenger = ScaffoldMessenger.of(context);
     final file = await ServicePacketPdf.export(
       ServicePacket(
-        title: selectedPlan?.title ?? 'Service Packet',
+        title: selectedPlan.title,
         songs: songs,
         serviceOrder: serviceOrder,
       ),
@@ -725,7 +736,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       plans: _controller.servicePlans,
       selectedPlan: plan,
       items: plan?.items ?? const [],
-      planSongs: _controller.servicePlanSongs(plan),
       librarySongs: _controller.songs,
       onPlanSelected: _controller.selectServicePlan,
       onCreatePlan: _controller.createServicePlan,

@@ -556,7 +556,7 @@ class _ScorePerformanceView extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final paperWidth = (constraints.maxWidth - 32)
-            .clamp(360.0, 1080.0)
+            .clamp(360.0, 860.0)
             .toDouble();
         return NotificationListener<ScrollMetricsNotification>(
           onNotification: (_) {
@@ -595,7 +595,9 @@ class _ScorePerformanceView extends StatelessWidget {
                           arrangement.sourceXml,
                           arrangement.transposeSemitones,
                         ),
-                        staffSpace: 10,
+                        staffSpace: 12,
+                        staffGap: 156,
+                        interSystemGap: 108,
                       ),
                       Positioned.fill(
                         child: ScoreAnnotationCanvas(

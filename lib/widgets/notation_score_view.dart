@@ -7,11 +7,15 @@ class NotationScoreView extends StatefulWidget {
   const NotationScoreView({
     required this.musicXml,
     this.staffSpace = 10,
+    this.staffGap,
+    this.interSystemGap,
     super.key,
   });
 
   final String musicXml;
   final double staffSpace;
+  final double? staffGap;
+  final double? interSystemGap;
 
   @override
   State<NotationScoreView> createState() => _NotationScoreViewState();
@@ -61,6 +65,8 @@ class _NotationScoreViewState extends State<NotationScoreView> {
           child: document.buildView(
             key: ValueKey(widget.musicXml.hashCode),
             staffSpace: widget.staffSpace,
+            staffGap: widget.staffGap,
+            interSystemGap: widget.interSystemGap,
           ),
         );
       },

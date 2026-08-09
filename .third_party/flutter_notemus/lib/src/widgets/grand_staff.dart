@@ -22,12 +22,16 @@ class ScoreView extends StatelessWidget {
   final Score score;
   final MusicScoreTheme theme;
   final double staffSpace;
+  final double? staffGap;
+  final double? interSystemGap;
 
   const ScoreView({
     super.key,
     required this.score,
     this.theme = const MusicScoreTheme(),
     this.staffSpace = 12.0,
+    this.staffGap,
+    this.interSystemGap,
   });
 
   @override
@@ -35,7 +39,13 @@ class ScoreView extends StatelessWidget {
     final groups = score.staffGroups;
     if (groups.isEmpty) return const SizedBox.shrink();
     // All groups on one unified horizontal grid (a true multi-section system).
-    return GrandStaff(groups: groups, theme: theme, staffSpace: staffSpace);
+    return GrandStaff(
+      groups: groups,
+      theme: theme,
+      staffSpace: staffSpace,
+      staffGap: staffGap,
+      interSystemGap: interSystemGap,
+    );
   }
 }
 
@@ -71,6 +81,10 @@ class GrandStaff extends StatefulWidget {
   /// to 11 staff spaces (a comfortable grand-staff gap).
   final double? staffGap;
 
+  /// Extra vertical space between consecutive wrapped systems. Defaults to
+  /// six staff spaces, in addition to the lower portion of the last staff.
+  final double? interSystemGap;
+
   const GrandStaff({
     super.key,
     this.group,
@@ -78,8 +92,11 @@ class GrandStaff extends StatefulWidget {
     this.theme = const MusicScoreTheme(),
     this.staffSpace = 12.0,
     this.staffGap,
-  }) : assert(group != null || groups != null,
-            'Provide either group or groups');
+    this.interSystemGap,
+  }) : assert(
+         group != null || groups != null,
+         'Provide either group or groups',
+       );
 
   List<StaffGroup> get _groups => groups ?? [group!];
 
@@ -109,7 +126,9 @@ class _GrandStaffState extends State<GrandStaff> {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return Center(child: Text('Failed to load metadata: ${snapshot.error}'));
+          return Center(
+            child: Text('Failed to load metadata: ${snapshot.error}'),
+          );
         }
         if (widget._groups.every((g) => g.staves.isEmpty)) {
           return const SizedBox.shrink();
@@ -117,7 +136,8 @@ class _GrandStaffState extends State<GrandStaff> {
 
         return LayoutBuilder(
           builder: (context, constraints) {
-            final width = constraints.hasBoundedWidth && constraints.maxWidth.isFinite
+            final width =
+                constraints.hasBoundedWidth && constraints.maxWidth.isFinite
                 ? constraints.maxWidth
                 : 800.0;
             // Build the painter first so we can size to its (multi-system) height.
@@ -128,15 +148,13 @@ class _GrandStaffState extends State<GrandStaff> {
               theme: widget.theme,
               availableWidth: width,
               staffGap: _gap,
+              interSystemGap: widget.interSystemGap,
             );
             final height = painter.totalHeight;
             return SizedBox(
               width: width,
               height: height,
-              child: CustomPaint(
-                size: Size(width, height),
-                painter: painter,
-              ),
+              child: CustomPaint(size: Size(width, height), painter: painter),
             );
           },
         );

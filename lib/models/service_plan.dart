@@ -7,17 +7,19 @@ class ServicePlanItem {
     required this.songId,
     this.notes = '',
   }) : type = ServicePlanItemType.song,
-       title = null;
+       title = '';
 
-  const ServicePlanItem.section({required this.id, required String this.title})
-    : type = ServicePlanItemType.section,
-      songId = null,
-      notes = '';
+  const ServicePlanItem.section({
+    required this.id,
+    required this.title,
+    this.notes = '',
+  }) : type = ServicePlanItemType.section,
+       songId = null;
 
   final String id;
   final ServicePlanItemType type;
   final String? songId;
-  final String? title;
+  final String title;
   final String notes;
 
   bool get isSong => type == ServicePlanItemType.song;
@@ -32,7 +34,8 @@ class ServicePlanItem {
       ),
       ServicePlanItemType.section => ServicePlanItem.section(
         id: id,
-        title: title ?? this.title!,
+        title: title ?? this.title,
+        notes: notes ?? this.notes,
       ),
     };
   }
@@ -41,7 +44,7 @@ class ServicePlanItem {
     'id': id,
     'type': type.name,
     if (songId != null) 'songId': songId,
-    if (title != null) 'title': title,
+    if (title.isNotEmpty) 'title': title,
     if (notes.isNotEmpty) 'notes': notes,
   };
 
@@ -76,16 +79,23 @@ class ServicePlanItem {
     Map<String, Object?> json,
   ) {
     final title = json['title'];
-    if (title is! String || title.trim().isEmpty) {
+    final notes = json['notes'];
+    if (title is! String ||
+        title.trim().isEmpty ||
+        (notes != null && notes is! String)) {
       throw const FormatException('Invalid service plan section');
     }
-    return ServicePlanItem.section(id: id, title: title);
+    return ServicePlanItem.section(
+      id: id,
+      title: title,
+      notes: notes is String ? notes : '',
+    );
   }
 }
 
 /// A saved worship set. Song entries reference ids so song edits are reflected
-/// everywhere the song is used. Section entries and song notes belong to the
-/// plan itself.
+/// everywhere the song is used. Section text and song notes belong to the plan
+/// itself.
 class ServicePlan {
   ServicePlan({
     required this.id,

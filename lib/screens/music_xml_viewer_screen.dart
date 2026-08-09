@@ -269,7 +269,7 @@ class _MusicXmlViewerScreenState extends State<MusicXmlViewerScreen> {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final paperWidth = (constraints.maxWidth - 32)
-                    .clamp(360.0, 960.0)
+                    .clamp(360.0, 780.0)
                     .toDouble();
                 return ColoredBox(
                   color: Theme.of(context).colorScheme.surfaceContainerLow,
@@ -308,7 +308,9 @@ class _MusicXmlViewerScreenState extends State<MusicXmlViewerScreen> {
                               arrangement.sourceXml,
                               arrangement.transposeSemitones,
                             ),
-                            staffSpace: 9,
+                            staffSpace: 12,
+                            staffGap: 156,
+                            interSystemGap: 108,
                           ),
                           Positioned.fill(
                             child: ScoreAnnotationCanvas(

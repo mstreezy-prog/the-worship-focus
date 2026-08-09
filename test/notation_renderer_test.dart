@@ -91,9 +91,9 @@ void main() {
     final theme = NotationRenderer.scoreTheme;
 
     expect(theme.lyricTextStyle?.fontFamily, 'CMG Sans');
-    expect(theme.lyricTextStyle?.fontSize, 13);
+    expect(theme.lyricTextStyle?.fontSize, 17);
     expect(theme.expressionTextStyle?.fontFamily, 'CMG Sans');
-    expect(theme.expressionTextStyle?.fontSize, 16);
+    expect(theme.expressionTextStyle?.fontSize, 19);
     expect(theme.expressionTextStyle?.fontWeight, FontWeight.w700);
   });
 

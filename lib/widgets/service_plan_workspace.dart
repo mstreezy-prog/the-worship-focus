@@ -3,12 +3,47 @@ import 'package:flutter/material.dart';
 import '../models/service_plan.dart';
 import '../models/song.dart';
 
+Future<T?> _showServicePlanDialog<T>(
+  BuildContext context, {
+  required WidgetBuilder builder,
+}) async {
+  final navigator = Navigator.of(context, rootNavigator: true);
+  final route = DialogRoute<T>(context: context, builder: builder);
+  final result = await navigator.push(route);
+  await route.completed;
+  return result;
+}
+
+Future<T?> _showServicePlanSheet<T>(
+  BuildContext context, {
+  required WidgetBuilder builder,
+}) async {
+  final navigator = Navigator.of(context);
+  final localizations = MaterialLocalizations.of(context);
+  final route = ModalBottomSheetRoute<T>(
+    builder: builder,
+    capturedThemes: InheritedTheme.capture(
+      from: context,
+      to: navigator.context,
+    ),
+    isScrollControlled: false,
+    barrierLabel: localizations.scrimLabel,
+    barrierOnTapHint: localizations.scrimOnTapHint(
+      localizations.bottomSheetLabel,
+    ),
+    modalBarrierColor: Theme.of(context).bottomSheetTheme.modalBarrierColor,
+    showDragHandle: true,
+  );
+  final result = await navigator.push(route);
+  await route.completed;
+  return result;
+}
+
 class ServicePlanWorkspace extends StatelessWidget {
   const ServicePlanWorkspace({
     required this.plans,
     required this.selectedPlan,
     required this.items,
-    required this.planSongs,
     required this.librarySongs,
     required this.onPlanSelected,
     required this.onCreatePlan,
@@ -28,7 +63,6 @@ class ServicePlanWorkspace extends StatelessWidget {
   final List<ServicePlan> plans;
   final ServicePlan? selectedPlan;
   final List<ServicePlanItem> items;
-  final List<Song> planSongs;
   final List<Song> librarySongs;
   final ValueChanged<ServicePlan> onPlanSelected;
   final VoidCallback onCreatePlan;
@@ -77,7 +111,7 @@ class ServicePlanWorkspace extends StatelessWidget {
               _PlanToolbar(
                 plans: plans,
                 selectedPlan: plan,
-                hasSongs: planSongs.isNotEmpty,
+                hasSongs: items.isNotEmpty,
                 onPlanSelected: onPlanSelected,
                 onRenamePlan: onRenamePlan,
                 onChangePlanDate: onChangePlanDate,
@@ -132,9 +166,8 @@ class ServicePlanWorkspace extends StatelessWidget {
     final availableSongs = librarySongs
         .where((song) => !existingIds.contains(song.id))
         .toList(growable: false);
-    final selected = await showModalBottomSheet<Song>(
-      context: context,
-      showDragHandle: true,
+    final selected = await _showServicePlanSheet<Song>(
+      context,
       builder: (context) => SafeArea(
         child: SizedBox(
           height: 440,
@@ -177,13 +210,13 @@ class ServicePlanWorkspace extends StatelessWidget {
         ),
       ),
     );
-    if (selected != null) onAddSong(selected);
+    if (selected != null && context.mounted) onAddSong(selected);
   }
 
   Future<void> _showSectionDialog(BuildContext context) async {
     final controller = TextEditingController();
-    final title = await showDialog<String>(
-      context: context,
+    final title = await _showServicePlanDialog<String>(
+      context,
       builder: (context) => AlertDialog(
         title: const Text('Add section header'),
         content: TextField(
@@ -208,7 +241,7 @@ class ServicePlanWorkspace extends StatelessWidget {
       ),
     );
     controller.dispose();
-    if (title != null) onAddSection(title);
+    if (title != null && context.mounted) onAddSection(title);
   }
 
   static String _songTitle(Song song) =>
@@ -235,12 +268,14 @@ class _PlanItemCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isSection = item.isSection;
     final title = isSection
-        ? item.title!
+        ? item.title
         : song == null
         ? 'Song no longer in library'
         : ServicePlanWorkspace._songTitle(song!);
     final details = isSection
-        ? 'Section header'
+        ? item.notes.trim().isEmpty
+              ? 'Section header'
+              : item.notes.trim()
         : [
             if (song?.artist?.trim().isNotEmpty == true) song!.artist!,
             if (item.notes.trim().isNotEmpty) item.notes.trim(),
@@ -261,24 +296,39 @@ class _PlanItemCard extends StatelessWidget {
         ),
         title: Text(
           title,
-          style: isSection ? Theme.of(context).textTheme.titleMedium : null,
+          style: isSection
+              ? Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontFamily: 'CMG Sans',
+                  fontWeight: FontWeight.w700,
+                )
+              : null,
         ),
         subtitle: details.isEmpty
             ? Text('Song ${index + 1}')
-            : Text(details, maxLines: 2, overflow: TextOverflow.ellipsis),
+            : Text(
+                details,
+                maxLines: isSection ? null : 2,
+                overflow: isSection ? null : TextOverflow.ellipsis,
+                style: isSection
+                    ? const TextStyle(
+                        fontFamily: 'CMG Sans',
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      )
+                    : null,
+              ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (!isSection)
-              IconButton(
-                tooltip: 'Edit song note',
-                onPressed: () => _editNotes(context),
-                icon: Icon(
-                  item.notes.trim().isEmpty
-                      ? Icons.sticky_note_2_outlined
-                      : Icons.sticky_note_2,
-                ),
+            IconButton(
+              tooltip: isSection ? 'Edit section text' : 'Edit song note',
+              onPressed: () => _editNotes(context),
+              icon: Icon(
+                item.notes.trim().isEmpty
+                    ? Icons.sticky_note_2_outlined
+                    : Icons.sticky_note_2,
               ),
+            ),
             IconButton(
               tooltip: isSection ? 'Remove section' : 'Remove from plan',
               onPressed: onRemove,
@@ -292,20 +342,29 @@ class _PlanItemCard extends StatelessWidget {
 
   Future<void> _editNotes(BuildContext context) async {
     final controller = TextEditingController(text: item.notes);
-    final notes = await showDialog<String>(
-      context: context,
+    final notes = await _showServicePlanDialog<String>(
+      context,
       builder: (context) => AlertDialog(
         title: Text(
-          'Notes for ${song == null ? 'song' : ServicePlanWorkspace._songTitle(song!)}',
+          item.isSection
+              ? 'Text for ${item.title}'
+              : 'Notes for ${song == null ? 'song' : ServicePlanWorkspace._songTitle(song!)}',
         ),
         content: TextField(
           controller: controller,
           autofocus: true,
           minLines: 3,
           maxLines: 6,
+          style: const TextStyle(
+            fontFamily: 'CMG Sans',
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+          ),
           textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(
-            hintText: 'For example: Start in G; repeat chorus twice.',
+          decoration: InputDecoration(
+            hintText: item.isSection
+                ? 'Add a welcome, prayer, reading, or other service text.'
+                : 'For example: Start in G; repeat chorus twice.',
             border: OutlineInputBorder(),
           ),
         ),
@@ -322,7 +381,7 @@ class _PlanItemCard extends StatelessWidget {
       ),
     );
     controller.dispose();
-    if (notes != null) onEditNotes(notes.trim());
+    if (notes != null && context.mounted) onEditNotes(notes.trim());
   }
 }
 
@@ -450,8 +509,8 @@ class _PlanToolbar extends StatelessWidget {
 
   Future<void> _rename(BuildContext context) async {
     final controller = TextEditingController(text: selectedPlan.title);
-    final title = await showDialog<String>(
-      context: context,
+    final title = await _showServicePlanDialog<String>(
+      context,
       builder: (context) => AlertDialog(
         title: const Text('Rename service plan'),
         content: TextField(
@@ -474,23 +533,25 @@ class _PlanToolbar extends StatelessWidget {
       ),
     );
     controller.dispose();
-    if (title != null) onRenamePlan(title);
+    if (title != null && context.mounted) onRenamePlan(title);
   }
 
   Future<void> _selectDate(BuildContext context) async {
-    final date = await showDatePicker(
-      context: context,
-      initialDate: selectedPlan.date,
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2100),
-      helpText: 'Service date',
+    final date = await _showServicePlanDialog<DateTime>(
+      context,
+      builder: (context) => DatePickerDialog(
+        initialDate: selectedPlan.date,
+        firstDate: DateTime(2020),
+        lastDate: DateTime(2100),
+        helpText: 'Service date',
+      ),
     );
-    if (date != null) onChangePlanDate(date);
+    if (date != null && context.mounted) onChangePlanDate(date);
   }
 
   Future<void> _confirmDelete(BuildContext context) async {
-    final shouldDelete = await showDialog<bool>(
-      context: context,
+    final shouldDelete = await _showServicePlanDialog<bool>(
+      context,
       builder: (context) => AlertDialog(
         title: const Text('Delete service plan?'),
         content: Text(
@@ -508,7 +569,7 @@ class _PlanToolbar extends StatelessWidget {
         ],
       ),
     );
-    if (shouldDelete == true) onDeletePlan();
+    if (shouldDelete == true && context.mounted) onDeletePlan();
   }
 }
 

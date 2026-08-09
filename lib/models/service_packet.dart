@@ -13,7 +13,8 @@ class ServicePacket {
 }
 
 class ServicePacketEntry {
-  const ServicePacketEntry.section(this.title) : isSection = true, notes = '';
+  const ServicePacketEntry.section(this.title, {this.notes = ''})
+    : isSection = true;
 
   const ServicePacketEntry.song(this.title, {this.notes = ''})
     : isSection = false;

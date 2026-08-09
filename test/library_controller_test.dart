@@ -322,6 +322,11 @@ void main() {
       final song = controller.songs.first;
       controller.createServicePlan(title: 'Sunday Morning');
       controller.addServicePlanSection('Welcome');
+      final sectionItem = controller.selectedServicePlan!.items.first;
+      controller.updateServicePlanItemNotes(
+        sectionItem,
+        'Invite the congregation to stand and pray together.',
+      );
       controller.addSongToServicePlan(song);
       final songItem = controller.selectedServicePlan!.items.last;
 
@@ -336,6 +341,10 @@ void main() {
       expect(items.first.songId, song.id);
       expect(items.first.notes, 'Start in G; repeat the chorus.');
       expect(items.last.title, 'Welcome');
+      expect(
+        items.last.notes,
+        'Invite the congregation to stand and pray together.',
+      );
       expect(controller.selectedServicePlan!.date.year, 2026);
       expect(controller.selectedServicePlan!.date.month, 8);
       expect(controller.selectedServicePlan!.date.day, 9);

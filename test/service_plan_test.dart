@@ -32,13 +32,17 @@ void main() {
     expect(restored.songIds, plan.songIds);
   });
 
-  test('keeps section headers and song notes in their saved order', () {
+  test('keeps section text and song notes in their saved order', () {
     final plan = ServicePlan(
       id: 'plan-1',
       title: 'Sunday Morning',
       date: DateTime.utc(2026, 8, 9),
       items: const [
-        ServicePlanItem.section(id: 'section-1', title: 'Welcome'),
+        ServicePlanItem.section(
+          id: 'section-1',
+          title: 'Welcome',
+          notes: 'Invite the congregation to stand and pray together.',
+        ),
         ServicePlanItem.song(
           id: 'song-1',
           songId: 'amazing-grace',
@@ -51,6 +55,10 @@ void main() {
 
     expect(restored.items, hasLength(2));
     expect(restored.items.first.title, 'Welcome');
+    expect(
+      restored.items.first.notes,
+      'Invite the congregation to stand and pray together.',
+    );
     expect(restored.items.last.songId, 'amazing-grace');
     expect(restored.items.last.notes, 'Start in G; repeat the chorus.');
   });

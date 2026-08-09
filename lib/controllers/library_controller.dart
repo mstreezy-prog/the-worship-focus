@@ -476,7 +476,7 @@ class LibraryController extends ChangeNotifier {
 
   void updateServicePlanItemNotes(ServicePlanItem item, String value) {
     final plan = _selectedServicePlan;
-    if (plan == null || !item.isSong || item.notes == value) return;
+    if (plan == null || item.notes == value) return;
     _replaceServicePlan(
       plan.copyWith(
         items: [
