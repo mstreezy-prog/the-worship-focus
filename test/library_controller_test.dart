@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:worship_focus_studio/controllers/library_controller.dart';
 import 'package:worship_focus_studio/models/music_xml_arrangement.dart';
+import 'package:worship_focus_studio/models/library_backup.dart';
 import 'package:worship_focus_studio/models/score_annotation.dart';
 import 'package:worship_focus_studio/models/service_plan.dart';
 import 'package:worship_focus_studio/models/song.dart';
@@ -191,6 +192,78 @@ void main() {
     expect(controller.selectedSong!.leadSheet!.annotations, [stroke]);
     expect(controller.selectedSong!.fullPiano!.annotations, isEmpty);
     await controller.flushPendingSave();
+    controller.dispose();
+  });
+
+  test('merges a backup without overwriting existing song ids', () async {
+    final controller = LibraryController(
+      repository: SongRepository(store: _MemorySongStore()),
+      servicePlanRepository: ServicePlanRepository(
+        store: _MemoryServicePlanStore(),
+      ),
+      autosaveDelay: const Duration(days: 1),
+    );
+    final existing = controller.selectedSong!;
+    final backup = LibraryBackup(
+      createdAt: DateTime.utc(2026, 8, 8),
+      songs: [
+        Song(id: existing.id, title: 'Imported Song', chordPro: '[D]Imported'),
+      ],
+      servicePlans: [
+        ServicePlan(
+          id: 'plan-1',
+          title: 'Imported Plan',
+          date: DateTime.utc(2026, 8, 9),
+          songIds: [existing.id],
+        ),
+      ],
+    );
+
+    final result = await controller.restoreLibrary(
+      backup,
+      mode: LibraryRestoreMode.merge,
+    );
+
+    expect(result.songCount, controller.songs.length);
+    expect(
+      controller.songs.map((song) => song.title),
+      contains('Imported Song'),
+    );
+    final importedPlan = controller.servicePlans.single;
+    expect(importedPlan.songIds.single, isNot(existing.id));
+    expect(
+      controller.songs.map((song) => song.id),
+      contains(importedPlan.songIds.single),
+    );
+    controller.dispose();
+  });
+
+  test('replaces the library from a backup', () async {
+    final controller = LibraryController(
+      repository: SongRepository(store: _MemorySongStore()),
+      servicePlanRepository: ServicePlanRepository(
+        store: _MemoryServicePlanStore(),
+      ),
+      autosaveDelay: const Duration(days: 1),
+    );
+    final restoredSong = Song(
+      id: 'restored',
+      title: 'Restored Song',
+      chordPro: '[C]Restored',
+    );
+
+    final result = await controller.restoreLibrary(
+      LibraryBackup(
+        createdAt: DateTime.utc(2026, 8, 8),
+        songs: [restoredSong],
+        servicePlans: const [],
+      ),
+      mode: LibraryRestoreMode.replace,
+    );
+
+    expect(result.songCount, 1);
+    expect(controller.songs.single, same(restoredSong));
+    expect(controller.servicePlans, isEmpty);
     controller.dispose();
   });
 

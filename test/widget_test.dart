@@ -20,6 +20,7 @@ void main() {
     expect(find.text('Live preview'), findsOneWidget);
     expect(find.byTooltip('Live mode'), findsOneWidget);
     expect(find.byTooltip('Import ChordPro'), findsOneWidget);
+    expect(find.byTooltip('Library backup'), findsOneWidget);
     expect(find.byTooltip('Save ChordPro as'), findsOneWidget);
     expect(find.byTooltip('New song'), findsOneWidget);
     expect(find.byTooltip('Undo'), findsOneWidget);

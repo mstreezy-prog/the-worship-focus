@@ -56,4 +56,10 @@ class SongRepository {
   void delete(String id) {
     _songs.removeWhere((song) => song.id == id);
   }
+
+  void replaceAll(Iterable<Song> songs) {
+    _songs
+      ..clear()
+      ..addAll(songs);
+  }
 }

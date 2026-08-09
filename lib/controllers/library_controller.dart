@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../models/music_xml_arrangement.dart';
+import '../models/library_backup.dart';
 import '../models/score_annotation.dart';
 import '../models/service_plan.dart';
 import '../models/song.dart';
@@ -279,6 +280,87 @@ class LibraryController extends ChangeNotifier {
       type,
       arrangement.copyWith(annotations: List.unmodifiable(annotations)),
     );
+  }
+
+  Future<LibraryRestoreResult> restoreLibrary(
+    LibraryBackup backup, {
+    required LibraryRestoreMode mode,
+  }) async {
+    final (songs, plans) = switch (mode) {
+      LibraryRestoreMode.replace => (backup.songs, backup.servicePlans),
+      LibraryRestoreMode.merge => _mergeLibrary(backup),
+    };
+    _songs
+      ..clear()
+      ..addAll(songs);
+    _servicePlans
+      ..clear()
+      ..addAll(plans);
+    _repository.replaceAll(_songs);
+    _servicePlanRepository.replaceAll(_servicePlans);
+    _selectedSong = _songs.firstOrNull;
+    _selectedServicePlan = _servicePlans.firstOrNull;
+    _section = LibrarySection.songs;
+    _scheduleAutosave();
+    await flushPendingSave();
+    return LibraryRestoreResult(
+      mode: mode,
+      songCount: _songs.length,
+      servicePlanCount: _servicePlans.length,
+    );
+  }
+
+  (List<Song>, List<ServicePlan>) _mergeLibrary(LibraryBackup backup) {
+    final songs = List<Song>.of(_songs);
+    final plans = List<ServicePlan>.of(_servicePlans);
+    final usedSongIds = songs.map((song) => song.id).toSet();
+    final songIdMap = <String, String>{};
+    for (final song in backup.songs) {
+      final id = _uniqueImportedId(
+        song.id,
+        usedSongIds,
+        prefix: 'imported-song',
+      );
+      songIdMap[song.id] = id;
+      usedSongIds.add(id);
+      songs.add(id == song.id ? song : song.copyWith(id: id));
+    }
+    final usedPlanIds = plans.map((plan) => plan.id).toSet();
+    for (final plan in backup.servicePlans) {
+      final id = _uniqueImportedId(
+        plan.id,
+        usedPlanIds,
+        prefix: 'imported-plan',
+      );
+      usedPlanIds.add(id);
+      plans.add(
+        plan.copyWith(
+          id: id,
+          items: [
+            for (final item in plan.items)
+              item.isSong
+                  ? item.copyWith(songId: songIdMap[item.songId!]!)
+                  : item,
+          ],
+        ),
+      );
+    }
+    return (songs, plans);
+  }
+
+  String _uniqueImportedId(
+    String preferred,
+    Set<String> existing, {
+    required String prefix,
+  }) {
+    if (!existing.contains(preferred)) return preferred;
+    var suffix = 2;
+    var candidate = '$prefix-$preferred';
+    while (existing.contains(candidate)) {
+      candidate = '$prefix-$preferred-$suffix';
+      suffix++;
+    }
+    return candidate;
   }
 
   void toggleServiceSong(Song song) {

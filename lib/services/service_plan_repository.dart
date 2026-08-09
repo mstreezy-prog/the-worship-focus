@@ -30,5 +30,11 @@ class ServicePlanRepository {
 
   void delete(String id) => _plans.removeWhere((plan) => plan.id == id);
 
+  void replaceAll(Iterable<ServicePlan> plans) {
+    _plans
+      ..clear()
+      ..addAll(plans);
+  }
+
   Future<void> persist() => _store.writePlans(getAll());
 }

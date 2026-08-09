@@ -23,11 +23,11 @@ class ServicePlanItem {
   bool get isSong => type == ServicePlanItemType.song;
   bool get isSection => type == ServicePlanItemType.section;
 
-  ServicePlanItem copyWith({String? title, String? notes}) {
+  ServicePlanItem copyWith({String? title, String? notes, String? songId}) {
     return switch (type) {
       ServicePlanItemType.song => ServicePlanItem.song(
         id: id,
-        songId: songId!,
+        songId: songId ?? this.songId!,
         notes: notes ?? this.notes,
       ),
       ServicePlanItemType.section => ServicePlanItem.section(

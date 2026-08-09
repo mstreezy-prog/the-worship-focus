@@ -4,11 +4,13 @@ import 'package:flutter/material.dart';
 
 import '../controllers/library_controller.dart';
 import '../models/music_xml_arrangement.dart';
+import '../models/library_backup.dart';
 import '../models/performance_content.dart';
 import '../models/service_plan.dart';
 import '../models/service_packet.dart';
 import '../models/song.dart';
 import '../services/chordpro_document_service.dart';
+import '../services/library_backup_service.dart';
 import '../services/music_xml_document_service.dart';
 import '../services/service_packet_pdf.dart';
 import '../widgets/chordpro_editor.dart';
@@ -29,6 +31,8 @@ enum _ToolbarAction {
   exportService,
 }
 
+enum _LibraryBackupAction { export, restore }
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -40,6 +44,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final LibraryController _controller = LibraryController();
   final ChordProDocumentService _documents = ChordProDocumentService();
   final MusicXmlDocumentService _musicXmlDocuments = MusicXmlDocumentService();
+  final LibraryBackupService _libraryBackup = LibraryBackupService();
   int _compactDetailIndex = 0;
   UndoHistoryController _undoController = UndoHistoryController();
 
@@ -266,6 +271,83 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _exportLibraryBackup() async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await _controller.flushPendingSave();
+      final path = await _libraryBackup.export(
+        songs: _controller.songs,
+        servicePlans: _controller.servicePlans,
+      );
+      if (path == null || !mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('Backed up library: $path')),
+      );
+    } on Object catch (error) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('Could not back up library: $error')),
+      );
+    }
+  }
+
+  Future<void> _restoreLibraryBackup() async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final backup = await _libraryBackup.import();
+      if (backup == null || !mounted) return;
+      final mode = await _showRestoreLibraryDialog(backup);
+      if (mode == null || !mounted) return;
+      _resetUndoHistory();
+      final result = await _controller.restoreLibrary(backup, mode: mode);
+      if (!mounted) return;
+      final verb = result.mode == LibraryRestoreMode.replace
+          ? 'Restored'
+          : 'Merged';
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            '$verb ${result.songCount} songs and ${result.servicePlanCount} service plans',
+          ),
+        ),
+      );
+    } on Object catch (error) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('Could not restore library: $error')),
+      );
+    }
+  }
+
+  Future<LibraryRestoreMode?> _showRestoreLibraryDialog(LibraryBackup backup) {
+    final date = MaterialLocalizations.of(
+      context,
+    ).formatMediumDate(backup.createdAt.toLocal());
+    return showDialog<LibraryRestoreMode>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Restore library backup?'),
+        content: Text(
+          'Backup from $date contains ${backup.songs.length} songs and ${backup.servicePlans.length} service plans.\n\nMerge keeps your current library and adds this backup. Replace permanently removes current songs and service plans before restoring this backup.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, LibraryRestoreMode.merge),
+            child: const Text('Merge'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, LibraryRestoreMode.replace),
+            child: const Text('Replace library'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _openMusicXmlViewer(MusicXmlArrangementType type) {
     final song = _controller.selectedSong;
     if (song == null || song.arrangement(type) == null) return;
@@ -339,10 +421,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   List<Widget> _buildAppActions(bool wide) {
     if (_controller.section == LibrarySection.musicXml) {
-      return _buildMusicXmlAppActions();
+      return [..._buildMusicXmlAppActions(), _buildLibraryBackupMenu()];
     }
     if (_controller.section != LibrarySection.songs) {
-      return const [SizedBox(width: 8)];
+      return [_buildLibraryBackupMenu(), const SizedBox(width: 8)];
     }
     final song = _controller.selectedSong;
     return [
@@ -423,7 +505,39 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ],
         ),
       const SizedBox(width: 8),
+      _buildLibraryBackupMenu(),
     ];
+  }
+
+  Widget _buildLibraryBackupMenu() {
+    return PopupMenuButton<_LibraryBackupAction>(
+      tooltip: 'Library backup',
+      icon: const Icon(Icons.backup_outlined),
+      onSelected: (action) {
+        switch (action) {
+          case _LibraryBackupAction.export:
+            unawaited(_exportLibraryBackup());
+          case _LibraryBackupAction.restore:
+            unawaited(_restoreLibraryBackup());
+        }
+      },
+      itemBuilder: (context) => const [
+        PopupMenuItem(
+          value: _LibraryBackupAction.export,
+          child: ListTile(
+            leading: Icon(Icons.ios_share_outlined),
+            title: Text('Back up library'),
+          ),
+        ),
+        PopupMenuItem(
+          value: _LibraryBackupAction.restore,
+          child: ListTile(
+            leading: Icon(Icons.restore_outlined),
+            title: Text('Restore library'),
+          ),
+        ),
+      ],
+    );
   }
 
   List<Widget> _buildMusicXmlAppActions() {
