@@ -7,10 +7,12 @@ import '../controllers/performance_controller.dart';
 import '../models/music_xml_arrangement.dart';
 import '../models/performance_content.dart';
 import '../models/performance_preferences.dart';
+import '../models/score_annotation.dart';
 import '../models/song.dart';
 import '../services/music_xml_transposer.dart';
 import '../widgets/notation_score_view.dart';
 import '../widgets/preview_panel.dart';
+import '../widgets/score_annotation_canvas.dart';
 
 /// Full-screen presentation for ChordPro and attached MusicXML scores.
 class PerformanceScreen extends StatefulWidget {
@@ -582,15 +584,28 @@ class _ScorePerformanceView extends StatelessWidget {
                       ),
                     ],
                   ),
-                  child: NotationScoreView(
-                    key: ValueKey(
-                      '${arrangement.fileName}-${arrangement.transposeSemitones}',
-                    ),
-                    musicXml: MusicXmlTransposer.transpose(
-                      arrangement.sourceXml,
-                      arrangement.transposeSemitones,
-                    ),
-                    staffSpace: 10,
+                  child: Stack(
+                    fit: StackFit.passthrough,
+                    children: [
+                      NotationScoreView(
+                        key: ValueKey(
+                          '${arrangement.fileName}-${arrangement.transposeSemitones}',
+                        ),
+                        musicXml: MusicXmlTransposer.transpose(
+                          arrangement.sourceXml,
+                          arrangement.transposeSemitones,
+                        ),
+                        staffSpace: 10,
+                      ),
+                      Positioned.fill(
+                        child: ScoreAnnotationCanvas(
+                          annotations: arrangement.annotations,
+                          tool: ScoreAnnotationTool.none,
+                          color: ScoreAnnotationColor.purple,
+                          onChanged: (_) {},
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),

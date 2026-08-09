@@ -116,6 +116,7 @@ void main() {
             transposedType = type;
             transposedSemitones = semitones;
           },
+          onAnnotationsChanged: (_, _) {},
         ),
       ),
     );
@@ -129,6 +130,12 @@ void main() {
     expect(find.text('Full Piano'), findsOneWidget);
     expect(find.byTooltip('Transpose score down'), findsOneWidget);
     expect(find.byTooltip('Transpose score up'), findsOneWidget);
+    expect(find.byTooltip('Annotate with Apple Pencil'), findsOneWidget);
+    expect(find.byTooltip('Highlight with Apple Pencil'), findsOneWidget);
+    expect(
+      find.byTooltip('Erase annotations with Apple Pencil'),
+      findsOneWidget,
+    );
 
     await tester.tap(find.byTooltip('Transpose score up'));
     await tester.pump();

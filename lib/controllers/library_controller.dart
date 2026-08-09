@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../models/music_xml_arrangement.dart';
+import '../models/score_annotation.dart';
 import '../models/service_plan.dart';
 import '../models/song.dart';
 import '../services/chord_transposer.dart';
@@ -264,6 +265,19 @@ class LibraryController extends ChangeNotifier {
     setMusicXmlArrangement(
       type,
       arrangement.copyWith(transposeSemitones: boundedSemitones),
+    );
+  }
+
+  void setMusicXmlAnnotations(
+    MusicXmlArrangementType type,
+    List<ScoreAnnotationStroke> annotations,
+  ) {
+    final song = _selectedSong;
+    final arrangement = song?.arrangement(type);
+    if (song == null || arrangement == null) return;
+    setMusicXmlArrangement(
+      type,
+      arrangement.copyWith(annotations: List.unmodifiable(annotations)),
     );
   }
 

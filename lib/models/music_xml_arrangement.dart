@@ -1,7 +1,14 @@
+import 'score_annotation.dart';
+
 enum MusicXmlArrangementType { leadSheet, fullPiano }
 
 typedef MusicXmlTransposeCallback =
     void Function(MusicXmlArrangementType type, int semitones);
+typedef MusicXmlAnnotationsChangedCallback =
+    void Function(
+      MusicXmlArrangementType type,
+      List<ScoreAnnotationStroke> annotations,
+    );
 
 extension MusicXmlArrangementTypeLabel on MusicXmlArrangementType {
   String get label => switch (this) {
@@ -23,6 +30,7 @@ class MusicXmlArrangement {
     this.scoreTitle,
     this.partCount,
     this.transposeSemitones = 0,
+    this.annotations = const <ScoreAnnotationStroke>[],
   });
 
   final String fileName;
@@ -34,6 +42,9 @@ class MusicXmlArrangement {
   /// Always applied to [sourceXml], which remains unchanged.
   final int transposeSemitones;
 
+  /// App-owned markings drawn over this particular arrangement.
+  final List<ScoreAnnotationStroke> annotations;
+
   MusicXmlArrangement copyWith({
     String? fileName,
     String? sourceXml,
@@ -43,6 +54,7 @@ class MusicXmlArrangement {
     int? partCount,
     bool clearPartCount = false,
     int? transposeSemitones,
+    List<ScoreAnnotationStroke>? annotations,
   }) {
     return MusicXmlArrangement(
       fileName: fileName ?? this.fileName,
@@ -51,6 +63,7 @@ class MusicXmlArrangement {
       scoreTitle: clearScoreTitle ? null : scoreTitle ?? this.scoreTitle,
       partCount: clearPartCount ? null : partCount ?? this.partCount,
       transposeSemitones: transposeSemitones ?? this.transposeSemitones,
+      annotations: annotations ?? this.annotations,
     );
   }
 
@@ -62,6 +75,9 @@ class MusicXmlArrangement {
       'scoreTitle': scoreTitle,
       'partCount': partCount,
       'transposeSemitones': transposeSemitones,
+      'annotations': [
+        for (final annotation in annotations) annotation.toJson(),
+      ],
     };
   }
 
@@ -78,6 +94,21 @@ class MusicXmlArrangement {
       scoreTitle: json['scoreTitle'] as String?,
       partCount: json['partCount'] as int?,
       transposeSemitones: json['transposeSemitones'] as int? ?? 0,
+      annotations: _annotationsFromJson(json['annotations']),
     );
+  }
+
+  static List<ScoreAnnotationStroke> _annotationsFromJson(Object? value) {
+    if (value == null) return const <ScoreAnnotationStroke>[];
+    if (value is! List) {
+      throw const FormatException('Invalid saved score annotations');
+    }
+    return List.unmodifiable([
+      for (final item in value)
+        if (item is Map<String, Object?>)
+          ScoreAnnotationStroke.fromJson(item)
+        else
+          throw const FormatException('Invalid saved score annotation'),
+    ]);
   }
 }

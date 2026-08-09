@@ -275,6 +275,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           song: song,
           initialType: type,
           onTranspose: _controller.setMusicXmlTranspose,
+          onAnnotationsChanged: _controller.setMusicXmlAnnotations,
         ),
       ),
     );

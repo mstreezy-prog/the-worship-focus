@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:worship_focus_studio/controllers/library_controller.dart';
 import 'package:worship_focus_studio/models/music_xml_arrangement.dart';
+import 'package:worship_focus_studio/models/score_annotation.dart';
 import 'package:worship_focus_studio/models/service_plan.dart';
 import 'package:worship_focus_studio/models/song.dart';
 import 'package:worship_focus_studio/services/chordpro_document_service.dart';
@@ -158,6 +159,37 @@ void main() {
     expect(controller.selectedSong!.fullPiano!.transposeSemitones, -3);
     expect(controller.selectedSong!.leadSheet!.sourceXml, sourceXml);
     expect(controller.selectedSong!.fullPiano!.sourceXml, sourceXml);
+    await controller.flushPendingSave();
+    controller.dispose();
+  });
+
+  test('stores score annotations separately for each arrangement', () async {
+    final controller = LibraryController(
+      repository: SongRepository(store: _MemorySongStore()),
+      autosaveDelay: const Duration(days: 1),
+    );
+    const sourceXml = '<score-partwise/>';
+    for (final type in MusicXmlArrangementType.values) {
+      controller.setMusicXmlArrangement(
+        type,
+        MusicXmlArrangement(
+          fileName: '${type.name}.musicxml',
+          sourceXml: sourceXml,
+        ),
+      );
+    }
+    const stroke = ScoreAnnotationStroke(
+      points: [ScoreAnnotationPoint(x: 0.1, y: 0.2)],
+      color: ScoreAnnotationColor.red,
+      style: ScoreAnnotationStyle.pen,
+    );
+
+    controller.setMusicXmlAnnotations(MusicXmlArrangementType.leadSheet, const [
+      stroke,
+    ]);
+
+    expect(controller.selectedSong!.leadSheet!.annotations, [stroke]);
+    expect(controller.selectedSong!.fullPiano!.annotations, isEmpty);
     await controller.flushPendingSave();
     controller.dispose();
   });
