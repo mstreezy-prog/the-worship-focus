@@ -299,7 +299,8 @@ class GrandStaffPainter extends CustomPainter {
     // Shift the whole system right to leave room for the brace/bracket.
     canvas.translate(_bracePad, 0);
 
-    final baseline0 = staffSpace * 5.0;
+    // Reserve a clear top lane for rehearsal marks above chord symbols.
+    final baseline0 = staffSpace * 11.0;
     for (var sysIdx = 0; sysIdx < _systems.length; sysIdx++) {
       final layouts = _systems[sysIdx];
       if (layouts.isEmpty) continue;
@@ -607,6 +608,7 @@ class GrandStaffPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant GrandStaffPainter oldDelegate) {
     return !identical(oldDelegate.groups, groups) ||
+        oldDelegate.theme != theme ||
         oldDelegate.staffSpace != staffSpace ||
         oldDelegate.staffGap != staffGap ||
         oldDelegate.interSystemGap != interSystemGap ||

@@ -2,6 +2,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_notemus/flutter_notemus.dart';
 
+import '../models/score_display_preferences.dart';
+
 class NotationRenderer {
   NotationRenderer._();
 
@@ -29,7 +31,28 @@ class NotationRenderer {
       fontSize: 19,
       fontWeight: FontWeight.w700,
     ),
+    rehearsalTextStyle: TextStyle(
+      color: Color(0xFF50637E),
+      fontFamily: 'CMG Sans',
+      fontSize: 18,
+      fontWeight: FontWeight.w700,
+    ),
   );
+
+  static MusicScoreTheme scoreThemeFor(ScoreDisplayPreferences preferences) {
+    return MusicScoreTheme(
+      lyricTextStyle: scoreTheme.lyricTextStyle?.copyWith(
+        fontSize: preferences.lyricFontSize,
+      ),
+      expressionTextStyle: scoreTheme.expressionTextStyle?.copyWith(
+        fontSize: preferences.chordFontSize,
+      ),
+      chordTextStyle: scoreTheme.chordTextStyle?.copyWith(
+        fontSize: preferences.chordFontSize,
+      ),
+      rehearsalTextStyle: scoreTheme.rehearsalTextStyle,
+    );
+  }
 
   static Future<void> initialize() async {
     final initialization = _initialization ??= _loadAssets();
@@ -70,6 +93,7 @@ class NotationDocument {
     double staffSpace = 10,
     double? staffGap,
     double? interSystemGap,
+    MusicScoreTheme? theme,
   }) {
     return ScoreView(
       key: key,
@@ -77,7 +101,7 @@ class NotationDocument {
       staffSpace: staffSpace,
       staffGap: staffGap,
       interSystemGap: interSystemGap,
-      theme: NotationRenderer.scoreTheme,
+      theme: theme ?? NotationRenderer.scoreTheme,
     );
   }
 }

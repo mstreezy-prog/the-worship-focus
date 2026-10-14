@@ -29,13 +29,13 @@ void main() {
     final preferences = PerformancePreferences.fromJson({
       'fontSize': 100,
       'theme': 'light',
-      'scrollSpeed': 2,
+      'chordProColumns': 'two',
       'keepAwake': true,
     });
 
     expect(preferences.fontSize, 36);
     expect(preferences.theme, PerformanceTheme.light);
-    expect(preferences.scrollSpeed, 8);
+    expect(preferences.chordProColumns, ChordProColumnLayout.two);
     expect(preferences.keepAwake, isTrue);
   });
 
@@ -50,13 +50,13 @@ void main() {
 
     controller.increaseFontSize();
     controller.toggleTheme();
-    controller.setScrollSpeed(40);
+    controller.toggleChordProColumns();
     await controller.toggleKeepAwake();
     await Future<void>.delayed(Duration.zero);
 
     expect(store.saved!.fontSize, 22);
     expect(store.saved!.theme, PerformanceTheme.light);
-    expect(store.saved!.scrollSpeed, 40);
+    expect(store.saved!.chordProColumns, ChordProColumnLayout.two);
     expect(store.saved!.keepAwake, isTrue);
     expect(wakeLock.calls, [true]);
 
@@ -71,6 +71,7 @@ void main() {
     await restored.initialize();
     expect(restored.preferences.fontSize, 22);
     expect(restored.preferences.theme, PerformanceTheme.light);
+    expect(restored.preferences.chordProColumns, ChordProColumnLayout.two);
     restored.dispose();
   });
 }

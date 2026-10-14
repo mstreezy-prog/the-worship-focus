@@ -1,21 +1,18 @@
 import 'package:flutter/material.dart';
 
+import '../models/score_display_preferences.dart';
 import '../services/music_xml_display_transformer.dart';
 import '../services/notation_renderer.dart';
 
 class NotationScoreView extends StatefulWidget {
   const NotationScoreView({
     required this.musicXml,
-    this.staffSpace = 10,
-    this.staffGap,
-    this.interSystemGap,
+    this.displayPreferences = const ScoreDisplayPreferences(),
     super.key,
   });
 
   final String musicXml;
-  final double staffSpace;
-  final double? staffGap;
-  final double? interSystemGap;
+  final ScoreDisplayPreferences displayPreferences;
 
   @override
   State<NotationScoreView> createState() => _NotationScoreViewState();
@@ -64,9 +61,10 @@ class _NotationScoreViewState extends State<NotationScoreView> {
               'Rendered score with ${document.staffCount} staff${document.staffCount == 1 ? '' : 's'}',
           child: document.buildView(
             key: ValueKey(widget.musicXml.hashCode),
-            staffSpace: widget.staffSpace,
-            staffGap: widget.staffGap,
-            interSystemGap: widget.interSystemGap,
+            staffSpace: widget.displayPreferences.noteSize,
+            staffGap: widget.displayPreferences.staffGap,
+            interSystemGap: widget.displayPreferences.interSystemGap,
+            theme: NotationRenderer.scoreThemeFor(widget.displayPreferences),
           ),
         );
       },

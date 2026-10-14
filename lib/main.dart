@@ -12,7 +12,7 @@ class WorshipFocusStudioApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Worship Focus Studio',
+      title: 'The Worship Focus',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.indigo),
       home: const HomeScreen(),

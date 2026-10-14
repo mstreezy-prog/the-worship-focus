@@ -12,6 +12,16 @@ const _harmonyScore = '''<score-partwise version="4.0">
   </part>
 </score-partwise>''';
 
+const _sectionWordScore = '''<score-partwise version="4.0">
+  <part id="P1">
+    <measure number="1">
+      <direction><direction-type><words>VERSE 1</words></direction-type></direction>
+      <direction><direction-type><words>CHORUS</words></direction-type></direction>
+      <direction><direction-type><words>rit.</words></direction-type></direction>
+    </measure>
+  </part>
+</score-partwise>''';
+
 void main() {
   test('preserves MusicXML without harmony elements exactly', () {
     const source = '<score-partwise version="4.0" />';
@@ -30,5 +40,20 @@ void main() {
 
     expect(labels, ['G', 'C#m7/Gb', 'Dsus4']);
     expect(document.findAllElements('harmony'), hasLength(3));
+  });
+
+  test('moves common section words into rehearsal-mark rendering', () {
+    final document = XmlDocument.parse(
+      MusicXmlDisplayTransformer.prepare(_sectionWordScore),
+    );
+
+    expect(
+      document.findAllElements('rehearsal').map((element) => element.innerText),
+      ['VERSE 1', 'CHORUS'],
+    );
+    expect(
+      document.findAllElements('words').map((element) => element.innerText),
+      ['rit.'],
+    );
   });
 }

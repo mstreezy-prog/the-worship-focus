@@ -45,7 +45,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final ChordProDocumentService _documents = ChordProDocumentService();
   final MusicXmlDocumentService _musicXmlDocuments = MusicXmlDocumentService();
   final LibraryBackupService _libraryBackup = LibraryBackupService();
-  int _compactDetailIndex = 0;
   UndoHistoryController _undoController = UndoHistoryController();
 
   @override
@@ -431,9 +430,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   List<Widget> _buildAppActions(bool wide) {
-    if (_controller.section == LibrarySection.musicXml) {
-      return [..._buildMusicXmlAppActions(), _buildLibraryBackupMenu()];
-    }
     if (_controller.section != LibrarySection.songs) {
       return [_buildLibraryBackupMenu(), const SizedBox(width: 8)];
     }
@@ -551,51 +547,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  List<Widget> _buildMusicXmlAppActions() {
-    final song = _controller.selectedSong;
-    if (song == null) return const [SizedBox(width: 8)];
-    final availableTypes = [
-      for (final type in MusicXmlArrangementType.values)
-        if (song.arrangement(type) != null) type,
-    ];
-    if (availableTypes.isEmpty) return const [SizedBox(width: 8)];
-    if (availableTypes.length == 1) {
-      final type = availableTypes.single;
-      return [
-        IconButton(
-          key: const ValueKey('view-score-action'),
-          tooltip: 'View ${type.label}',
-          onPressed: () => _openMusicXmlViewer(type),
-          icon: const Icon(Icons.visibility_outlined),
-        ),
-        const SizedBox(width: 8),
-      ];
-    }
-    return [
-      PopupMenuButton<MusicXmlArrangementType>(
-        key: const ValueKey('view-score-action'),
-        tooltip: 'View score',
-        icon: const Icon(Icons.visibility_outlined),
-        onSelected: _openMusicXmlViewer,
-        itemBuilder: (context) => [
-          for (final type in availableTypes)
-            PopupMenuItem(
-              value: type,
-              child: ListTile(
-                leading: Icon(
-                  type == MusicXmlArrangementType.leadSheet
-                      ? Icons.music_note_outlined
-                      : Icons.piano_outlined,
-                ),
-                title: Text(type.label),
-              ),
-            ),
-        ],
-      ),
-      const SizedBox(width: 8),
-    ];
-  }
-
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -609,7 +560,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 title: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('Worship Focus'),
+                    const Text('The Worship Focus'),
                     const SizedBox(width: 12),
                     _SaveStatus(
                       state: _controller.saveState,
@@ -650,19 +601,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         else ...[
           Expanded(flex: 3, child: _buildSongList()),
           const VerticalDivider(width: 1),
-          Expanded(
-            flex: 7,
-            child: _controller.section == LibrarySection.songs
-                ? _buildSongWorkspace()
-                : _buildMusicXmlWorkspace(),
-          ),
+          Expanded(flex: 7, child: _buildSongWorkspace()),
         ],
       ],
     );
   }
 
   Widget _buildCompactLayout() {
-    if (_controller.section != LibrarySection.songs) {
+    if (_controller.section == LibrarySection.servicePlans) {
       return _buildSection();
     }
     final song = _controller.selectedSong;
@@ -682,25 +628,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   onKeyChanged: _controller.updateKey,
                   onTempoChanged: _controller.updateTempo,
                 ),
-                SegmentedButton<int>(
-                  segments: const [
-                    ButtonSegment(value: 0, label: Text('Editor')),
-                    ButtonSegment(value: 1, label: Text('Preview')),
-                  ],
-                  selected: {_compactDetailIndex},
-                  onSelectionChanged: (selection) {
-                    setState(() => _compactDetailIndex = selection.first);
-                  },
-                ),
-                Expanded(
-                  child: _compactDetailIndex == 0
-                      ? ChordProEditor(
-                          song: song,
-                          onChanged: _controller.updateChordPro,
-                          undoController: _undoController,
-                        )
-                      : PreviewPanel(song: song),
-                ),
+                Expanded(child: _buildTabbedWorkspace(song)),
               ],
             ),
           ),
@@ -712,15 +640,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return switch (_controller.section) {
       LibrarySection.songs => _buildSongList(),
       LibrarySection.servicePlans => _buildServicePlanWorkspace(),
-      LibrarySection.musicXml => _buildMusicXmlWorkspace(),
     };
   }
 
-  Widget _buildMusicXmlWorkspace() {
+  Widget _buildMusicXmlWorkspace(Song song) {
     return MusicXmlWorkspace(
-      songs: _controller.songs,
-      selectedSong: _controller.selectedSong,
-      onSongSelected: _selectSong,
+      song: song,
       onImport: (type) => unawaited(_importMusicXml(type)),
       onView: _openMusicXmlViewer,
       onPerform: _openMusicXmlPerformance,
@@ -787,41 +712,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           onTempoChanged: _controller.updateTempo,
         ),
         const Divider(height: 1),
-        Expanded(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              if (constraints.maxWidth < 650) {
-                return _buildTabbedWorkspace(song);
-              }
-              return Row(
-                children: [
-                  Expanded(
-                    child: ChordProEditor(
-                      song: song,
-                      onChanged: _controller.updateChordPro,
-                      undoController: _undoController,
-                    ),
-                  ),
-                  const VerticalDivider(width: 1),
-                  Expanded(child: PreviewPanel(song: song)),
-                ],
-              );
-            },
-          ),
-        ),
+        Expanded(child: _buildTabbedWorkspace(song)),
       ],
     );
   }
 
   Widget _buildTabbedWorkspace(Song song) {
     return DefaultTabController(
-      length: 2,
+      key: ValueKey('song-workspace-${song.id}'),
+      length: 3,
       child: Column(
         children: [
           const TabBar(
             tabs: [
               Tab(text: 'Editor'),
               Tab(text: 'Preview'),
+              Tab(text: 'MusicXML'),
             ],
           ),
           Expanded(
@@ -833,6 +739,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   undoController: _undoController,
                 ),
                 PreviewPanel(song: song),
+                _buildMusicXmlWorkspace(song),
               ],
             ),
           ),

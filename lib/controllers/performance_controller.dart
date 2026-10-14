@@ -15,12 +15,10 @@ class PerformanceController extends ChangeNotifier {
   final PerformancePreferencesStore _store;
   final KeepAwakeService _keepAwakeService;
   PerformancePreferences _preferences = const PerformancePreferences();
-  bool _autoScrolling = false;
   bool _wakeLockActive = false;
   Future<void> _writeQueue = Future<void>.value();
 
   PerformancePreferences get preferences => _preferences;
-  bool get autoScrolling => _autoScrolling;
 
   Future<void> initialize() async {
     try {
@@ -57,13 +55,15 @@ class PerformanceController extends ChangeNotifier {
     );
   }
 
-  void setScrollSpeed(double value) {
-    _update(_preferences.copyWith(scrollSpeed: value));
-  }
-
-  void toggleAutoScroll() {
-    _autoScrolling = !_autoScrolling;
-    notifyListeners();
+  void toggleChordProColumns() {
+    _update(
+      _preferences.copyWith(
+        chordProColumns:
+            _preferences.chordProColumns == ChordProColumnLayout.single
+            ? ChordProColumnLayout.two
+            : ChordProColumnLayout.single,
+      ),
+    );
   }
 
   Future<void> toggleKeepAwake() async {
@@ -91,7 +91,7 @@ class PerformanceController extends ChangeNotifier {
     _preferences = PerformancePreferences(
       fontSize: preferences.fontSize.clamp(14, 36).toDouble(),
       theme: preferences.theme,
-      scrollSpeed: preferences.scrollSpeed.clamp(8, 60).toDouble(),
+      chordProColumns: preferences.chordProColumns,
       keepAwake: preferences.keepAwake,
     );
     notifyListeners();

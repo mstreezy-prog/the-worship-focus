@@ -19,7 +19,6 @@ class LibrarySidebar extends StatelessWidget {
     final destinations = <({IconData icon, String label})>[
       (icon: Icons.library_music_outlined, label: 'Songs'),
       (icon: Icons.event_note_outlined, label: 'Service plans'),
-      (icon: Icons.music_note_outlined, label: 'MusicXML'),
     ];
 
     if (compact) {

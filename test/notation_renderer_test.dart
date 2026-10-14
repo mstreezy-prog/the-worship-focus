@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:worship_focus_studio/models/music_xml_arrangement.dart';
 import 'package:worship_focus_studio/models/performance_content.dart';
+import 'package:worship_focus_studio/models/score_display_preferences.dart';
 import 'package:worship_focus_studio/models/song.dart';
 import 'package:worship_focus_studio/screens/music_xml_viewer_screen.dart';
 import 'package:worship_focus_studio/screens/performance_screen.dart';
@@ -95,6 +96,19 @@ void main() {
     expect(theme.expressionTextStyle?.fontFamily, 'CMG Sans');
     expect(theme.expressionTextStyle?.fontSize, 19);
     expect(theme.expressionTextStyle?.fontWeight, FontWeight.w700);
+    expect(theme.rehearsalTextStyle?.color, const Color(0xFF50637E));
+    expect(theme.rehearsalTextStyle?.fontFamily, 'CMG Sans');
+  });
+
+  test('score theme applies independent lyric and chord sizes', () {
+    final theme = NotationRenderer.scoreThemeFor(
+      const ScoreDisplayPreferences(lyricFontSize: 23, chordFontSize: 27),
+    );
+
+    expect(theme.lyricTextStyle?.fontSize, 23);
+    expect(theme.expressionTextStyle?.fontSize, 27);
+    expect(theme.chordTextStyle?.fontSize, 27);
+    expect(theme.rehearsalTextStyle?.fontSize, 18);
   });
 
   testWidgets('viewer switches arrangements and exposes score controls', (
@@ -125,6 +139,7 @@ void main() {
     expect(find.byTooltip('Zoom out'), findsOneWidget);
     expect(find.byTooltip('Fit score'), findsOneWidget);
     expect(find.byTooltip('Zoom in'), findsOneWidget);
+    expect(find.byTooltip('Score display settings'), findsOneWidget);
     expect(find.byTooltip('Go live with score'), findsOneWidget);
     expect(find.text('Lead Sheet'), findsOneWidget);
     expect(find.text('Full Piano'), findsOneWidget);
@@ -144,6 +159,18 @@ void main() {
     expect(transposedSemitones, 1);
     expect(find.text('Db major'), findsOneWidget);
     expect(find.text('+1 semitone'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Score display settings'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Score display'), findsOneWidget);
+    expect(find.text('Lyrics'), findsOneWidget);
+    expect(find.text('Chords'), findsOneWidget);
+    expect(find.text('Notes and staff'), findsOneWidget);
+    await tester.tap(find.text('Restore defaults'));
+    await tester.pump();
+    await tester.tapAt(const Offset(20, 20));
+    await tester.pump(const Duration(milliseconds: 300));
 
     await tester.tap(find.text('Full Piano'));
     await tester.pump();
@@ -169,9 +196,7 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: MusicXmlWorkspace(
-            songs: [song],
-            selectedSong: song,
-            onSongSelected: (_) {},
+            song: song,
             onImport: (_) {},
             onView: (type) => openedType = type,
             onPerform: (type) => performedType = type,

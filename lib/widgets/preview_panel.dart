@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../models/song.dart';
-import '../services/chord_layout_engine.dart';
+import '../services/chordpro_document.dart';
+import 'chord_diagram.dart';
 import 'chord_line.dart';
 
 class PreviewPanel extends StatelessWidget {
@@ -20,7 +21,7 @@ class PreviewPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final lines = ChordLayoutEngine.build(song.chordPro);
+    final document = ChordProDocument.parse(song.chordPro);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -37,9 +38,22 @@ class PreviewPanel extends StatelessWidget {
           child: ListView(
             controller: scrollController,
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-            children: lines
-                .map((line) => ChordLine(line: line, fontSize: fontSize))
-                .toList(),
+            children: [
+              for (final block in document.blocks)
+                switch (block) {
+                  ChordProTextBlock(:final line) => ChordLine(
+                    line: line,
+                    fontSize: fontSize,
+                  ),
+                  ChordProDiagramBlock(:final definition) => Padding(
+                    padding: EdgeInsets.symmetric(vertical: fontSize * 0.5),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: ChordDiagram(definition: definition),
+                    ),
+                  ),
+                },
+            ],
           ),
         ),
       ],

@@ -1,28 +1,30 @@
 enum PerformanceTheme { dark, light }
 
+enum ChordProColumnLayout { single, two }
+
 class PerformancePreferences {
   const PerformancePreferences({
     this.fontSize = 20,
     this.theme = PerformanceTheme.dark,
-    this.scrollSpeed = 24,
+    this.chordProColumns = ChordProColumnLayout.single,
     this.keepAwake = false,
   });
 
   final double fontSize;
   final PerformanceTheme theme;
-  final double scrollSpeed;
+  final ChordProColumnLayout chordProColumns;
   final bool keepAwake;
 
   PerformancePreferences copyWith({
     double? fontSize,
     PerformanceTheme? theme,
-    double? scrollSpeed,
+    ChordProColumnLayout? chordProColumns,
     bool? keepAwake,
   }) {
     return PerformancePreferences(
       fontSize: fontSize ?? this.fontSize,
       theme: theme ?? this.theme,
-      scrollSpeed: scrollSpeed ?? this.scrollSpeed,
+      chordProColumns: chordProColumns ?? this.chordProColumns,
       keepAwake: keepAwake ?? this.keepAwake,
     );
   }
@@ -31,15 +33,15 @@ class PerformancePreferences {
     return {
       'fontSize': fontSize,
       'theme': theme.name,
-      'scrollSpeed': scrollSpeed,
+      'chordProColumns': chordProColumns.name,
       'keepAwake': keepAwake,
     };
   }
 
   factory PerformancePreferences.fromJson(Map<String, Object?> json) {
     final fontSize = (json['fontSize'] as num?)?.toDouble() ?? 20;
-    final scrollSpeed = (json['scrollSpeed'] as num?)?.toDouble() ?? 24;
     final themeName = json['theme'] as String?;
+    final columnName = json['chordProColumns'] as String?;
     return PerformancePreferences(
       fontSize: fontSize.clamp(14, 36).toDouble(),
       theme:
@@ -47,7 +49,11 @@ class PerformancePreferences {
               .where((theme) => theme.name == themeName)
               .firstOrNull ??
           PerformanceTheme.dark,
-      scrollSpeed: scrollSpeed.clamp(8, 60).toDouble(),
+      chordProColumns:
+          ChordProColumnLayout.values
+              .where((layout) => layout.name == columnName)
+              .firstOrNull ??
+          ChordProColumnLayout.single,
       keepAwake: json['keepAwake'] as bool? ?? false,
     );
   }

@@ -14,7 +14,7 @@ import '../services/music_xml_transposer.dart';
 import '../services/service_plan_repository.dart';
 import '../services/song_repository.dart';
 
-enum LibrarySection { songs, servicePlans, musicXml }
+enum LibrarySection { songs, servicePlans }
 
 enum LibrarySaveState { loading, saved, unsaved, saving, error }
 

@@ -520,6 +520,16 @@ class SymbolAndTextRenderer {
               fontFamilyFallback: smuflTextFontFallback,
             );
         break;
+      case TextType.rehearsal:
+        baseStyle =
+            theme.rehearsalTextStyle ??
+            theme.textStyle ??
+            TextStyle(
+              fontSize: coordinates.staffSpace * 1.25,
+              fontWeight: FontWeight.w700,
+              fontFamilyFallback: smuflTextFontFallback,
+            );
+        break;
       default:
         baseStyle =
             theme.textStyle ??
@@ -564,6 +574,10 @@ class SymbolAndTextRenderer {
           case TextType.dynamics:
             return coordinates.getStaffLineY(5) -
                 (coordinates.staffSpace * 1.75);
+          case TextType.rehearsal:
+            // Section labels have their own lane above chord symbols.
+            return coordinates.getStaffLineY(5) -
+                (coordinates.staffSpace * 4.75);
           default:
             return coordinates.getStaffLineY(5) -
                 (coordinates.staffSpace * 1.55);

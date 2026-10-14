@@ -6,9 +6,7 @@ import '../services/music_xml_transposer.dart';
 
 class MusicXmlWorkspace extends StatelessWidget {
   const MusicXmlWorkspace({
-    required this.songs,
-    required this.selectedSong,
-    required this.onSongSelected,
+    required this.song,
     required this.onImport,
     required this.onView,
     required this.onPerform,
@@ -18,9 +16,7 @@ class MusicXmlWorkspace extends StatelessWidget {
     super.key,
   });
 
-  final List<Song> songs;
-  final Song? selectedSong;
-  final ValueChanged<Song> onSongSelected;
+  final Song song;
   final ValueChanged<MusicXmlArrangementType> onImport;
   final ValueChanged<MusicXmlArrangementType> onView;
   final ValueChanged<MusicXmlArrangementType> onPerform;
@@ -30,10 +26,6 @@ class MusicXmlWorkspace extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final song = selectedSong;
-    if (song == null) {
-      return const Center(child: Text('Create or select a song to add scores'));
-    }
     final attachedTypes = [
       for (final type in MusicXmlArrangementType.values)
         if (song.arrangement(type) != null) type,
@@ -47,7 +39,7 @@ class MusicXmlWorkspace extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'MusicXML arrangements',
+                  'MusicXML scores',
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 const SizedBox(height: 8),
@@ -56,24 +48,6 @@ class MusicXmlWorkspace extends StatelessWidget {
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 20),
-                DropdownButtonFormField<String>(
-                  key: const ValueKey('musicxml-song-selector'),
-                  initialValue: song.id,
-                  decoration: const InputDecoration(
-                    labelText: 'Song',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: [
-                    for (final item in songs)
-                      DropdownMenuItem(value: item.id, child: Text(item.title)),
-                  ],
-                  onChanged: (id) {
-                    final selected = songs
-                        .where((candidate) => candidate.id == id)
-                        .firstOrNull;
-                    if (selected != null) onSongSelected(selected);
-                  },
-                ),
                 if (attachedTypes.isNotEmpty) ...[
                   const SizedBox(height: 16),
                   Text(

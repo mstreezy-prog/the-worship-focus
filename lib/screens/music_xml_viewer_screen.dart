@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../controllers/score_display_controller.dart';
 import '../models/music_xml_arrangement.dart';
 import '../models/performance_content.dart';
 import '../models/score_annotation.dart';
+import '../models/score_display_preferences.dart';
 import '../models/song.dart';
 import '../services/music_xml_transposer.dart';
 import '../widgets/notation_score_view.dart';
@@ -15,6 +19,7 @@ class MusicXmlViewerScreen extends StatefulWidget {
     required this.initialType,
     required this.onTranspose,
     required this.onAnnotationsChanged,
+    this.displayController,
     super.key,
   }) : assert(
          song.leadSheet != null || song.fullPiano != null,
@@ -25,6 +30,7 @@ class MusicXmlViewerScreen extends StatefulWidget {
   final MusicXmlArrangementType initialType;
   final MusicXmlTransposeCallback onTranspose;
   final MusicXmlAnnotationsChangedCallback onAnnotationsChanged;
+  final ScoreDisplayController? displayController;
 
   @override
   State<MusicXmlViewerScreen> createState() => _MusicXmlViewerScreenState();
@@ -38,6 +44,8 @@ class _MusicXmlViewerScreenState extends State<MusicXmlViewerScreen> {
   late final Map<MusicXmlArrangementType, int> _transposeSemitones;
   late final Map<MusicXmlArrangementType, List<ScoreAnnotationStroke>>
   _annotations;
+  late final ScoreDisplayController _displayController;
+  late final bool _ownsDisplayController;
   ScoreAnnotationTool _annotationTool = ScoreAnnotationTool.none;
   ScoreAnnotationColor _annotationColor = ScoreAnnotationColor.purple;
 
@@ -77,6 +85,7 @@ class _MusicXmlViewerScreenState extends State<MusicXmlViewerScreen> {
           initialContent: PerformanceContentDetails.fromArrangement(
             _selectedType,
           ),
+          initialScoreDisplayPreferences: _displayController.preferences,
         ),
         fullscreenDialog: true,
       ),
@@ -86,6 +95,9 @@ class _MusicXmlViewerScreenState extends State<MusicXmlViewerScreen> {
   @override
   void initState() {
     super.initState();
+    _ownsDisplayController = widget.displayController == null;
+    _displayController = widget.displayController ?? ScoreDisplayController();
+    unawaited(_displayController.initialize());
     _selectedType = widget.song.arrangement(widget.initialType) != null
         ? widget.initialType
         : _availableTypes.first;
@@ -102,6 +114,7 @@ class _MusicXmlViewerScreenState extends State<MusicXmlViewerScreen> {
   @override
   void dispose() {
     _transformation.dispose();
+    if (_ownsDisplayController) _displayController.dispose();
     super.dispose();
   }
 
@@ -142,6 +155,15 @@ class _MusicXmlViewerScreenState extends State<MusicXmlViewerScreen> {
     _transformation.value = Matrix4.identity();
   }
 
+  Future<void> _showScoreDisplaySettings() {
+    return showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) =>
+          _ScoreDisplaySettingsSheet(controller: _displayController),
+    );
+  }
+
   void _setTranspose(int semitones) {
     final boundedSemitones = semitones
         .clamp(
@@ -157,177 +179,304 @@ class _MusicXmlViewerScreenState extends State<MusicXmlViewerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final arrangement = _arrangement;
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.song.title),
-        actions: [
-          IconButton(
-            tooltip: 'Zoom out',
-            onPressed: () => _zoom(0.8),
-            icon: const Icon(Icons.zoom_out),
-          ),
-          IconButton(
-            tooltip: 'Fit score',
-            onPressed: _fitScore,
-            icon: const Icon(Icons.fit_screen_outlined),
-          ),
-          IconButton(
-            tooltip: 'Zoom in',
-            onPressed: () => _zoom(1.25),
-            icon: const Icon(Icons.zoom_in),
-          ),
-          IconButton(
-            tooltip: 'Go live with score',
-            onPressed: _openPerformance,
-            icon: const Icon(Icons.fullscreen),
-          ),
-          IconButton(
-            tooltip: _annotationTool == ScoreAnnotationTool.pen
-                ? 'Stop annotating'
-                : 'Annotate with Apple Pencil',
-            onPressed: () => _setAnnotationTool(ScoreAnnotationTool.pen),
-            color: _annotationTool == ScoreAnnotationTool.pen
-                ? Theme.of(context).colorScheme.primary
-                : null,
-            icon: const Icon(Icons.draw_outlined),
-          ),
-          IconButton(
-            tooltip: _annotationTool == ScoreAnnotationTool.highlighter
-                ? 'Stop highlighting'
-                : 'Highlight with Apple Pencil',
-            onPressed: () =>
-                _setAnnotationTool(ScoreAnnotationTool.highlighter),
-            color: _annotationTool == ScoreAnnotationTool.highlighter
-                ? Theme.of(context).colorScheme.primary
-                : null,
-            icon: const Icon(Icons.highlight_outlined),
-          ),
-          IconButton(
-            tooltip: _annotationTool == ScoreAnnotationTool.eraser
-                ? 'Stop erasing'
-                : 'Erase annotations with Apple Pencil',
-            onPressed: () => _setAnnotationTool(ScoreAnnotationTool.eraser),
-            color: _annotationTool == ScoreAnnotationTool.eraser
-                ? Theme.of(context).colorScheme.primary
-                : null,
-            icon: const Icon(Icons.auto_fix_off_outlined),
-          ),
-          PopupMenuButton<ScoreAnnotationColor>(
-            tooltip: 'Annotation color',
-            icon: Icon(Icons.palette_outlined, color: _annotationColor.color),
-            onSelected: _setAnnotationColor,
-            itemBuilder: (context) => [
-              for (final color in ScoreAnnotationColor.values)
-                PopupMenuItem(
-                  value: color,
-                  child: Row(
-                    children: [
-                      CircleAvatar(backgroundColor: color.color, radius: 9),
-                      const SizedBox(width: 12),
-                      Text(color.label),
-                    ],
-                  ),
+    return ListenableBuilder(
+      listenable: _displayController,
+      builder: (context, _) {
+        final arrangement = _arrangement;
+        final displayPreferences = _displayController.preferences;
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(widget.song.title),
+            actions: [
+              IconButton(
+                tooltip: 'Zoom out',
+                onPressed: () => _zoom(0.8),
+                icon: const Icon(Icons.zoom_out),
+              ),
+              IconButton(
+                tooltip: 'Fit score',
+                onPressed: _fitScore,
+                icon: const Icon(Icons.fit_screen_outlined),
+              ),
+              IconButton(
+                tooltip: 'Zoom in',
+                onPressed: () => _zoom(1.25),
+                icon: const Icon(Icons.zoom_in),
+              ),
+              IconButton(
+                tooltip: 'Score display settings',
+                onPressed: _showScoreDisplaySettings,
+                icon: const Icon(Icons.tune),
+              ),
+              IconButton(
+                tooltip: 'Go live with score',
+                onPressed: _openPerformance,
+                icon: const Icon(Icons.fullscreen),
+              ),
+              IconButton(
+                tooltip: _annotationTool == ScoreAnnotationTool.pen
+                    ? 'Stop annotating'
+                    : 'Annotate with Apple Pencil',
+                onPressed: () => _setAnnotationTool(ScoreAnnotationTool.pen),
+                color: _annotationTool == ScoreAnnotationTool.pen
+                    ? Theme.of(context).colorScheme.primary
+                    : null,
+                icon: const Icon(Icons.draw_outlined),
+              ),
+              IconButton(
+                tooltip: _annotationTool == ScoreAnnotationTool.highlighter
+                    ? 'Stop highlighting'
+                    : 'Highlight with Apple Pencil',
+                onPressed: () =>
+                    _setAnnotationTool(ScoreAnnotationTool.highlighter),
+                color: _annotationTool == ScoreAnnotationTool.highlighter
+                    ? Theme.of(context).colorScheme.primary
+                    : null,
+                icon: const Icon(Icons.highlight_outlined),
+              ),
+              IconButton(
+                tooltip: _annotationTool == ScoreAnnotationTool.eraser
+                    ? 'Stop erasing'
+                    : 'Erase annotations with Apple Pencil',
+                onPressed: () => _setAnnotationTool(ScoreAnnotationTool.eraser),
+                color: _annotationTool == ScoreAnnotationTool.eraser
+                    ? Theme.of(context).colorScheme.primary
+                    : null,
+                icon: const Icon(Icons.auto_fix_off_outlined),
+              ),
+              PopupMenuButton<ScoreAnnotationColor>(
+                tooltip: 'Annotation color',
+                icon: Icon(
+                  Icons.palette_outlined,
+                  color: _annotationColor.color,
                 ),
-            ],
-          ),
-          IconButton(
-            tooltip: 'Undo annotation',
-            onPressed: _annotationCanvasKey.currentState?.canUndo ?? false
-                ? () => _annotationCanvasKey.currentState?.undo()
-                : null,
-            icon: const Icon(Icons.undo),
-          ),
-          IconButton(
-            tooltip: 'Redo annotation',
-            onPressed: _annotationCanvasKey.currentState?.canRedo ?? false
-                ? () => _annotationCanvasKey.currentState?.redo()
-                : null,
-            icon: const Icon(Icons.redo),
-          ),
-          IconButton(
-            tooltip: 'Clear score annotations',
-            onPressed: _arrangement.annotations.isEmpty
-                ? null
-                : () => _annotationCanvasKey.currentState?.clear(),
-            icon: const Icon(Icons.layers_clear_outlined),
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: Column(
-        children: [
-          _ViewerHeader(
-            arrangement: arrangement,
-            availableTypes: _availableTypes,
-            selectedType: _selectedType,
-            onSelected: _selectType,
-            onTranspose: _setTranspose,
-          ),
-          const Divider(height: 1),
-          Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final paperWidth = (constraints.maxWidth - 32)
-                    .clamp(360.0, 780.0)
-                    .toDouble();
-                return ColoredBox(
-                  color: Theme.of(context).colorScheme.surfaceContainerLow,
-                  child: InteractiveViewer(
-                    transformationController: _transformation,
-                    alignment: Alignment.topCenter,
-                    boundaryMargin: const EdgeInsets.all(80),
-                    constrained: false,
-                    minScale: 0.6,
-                    maxScale: 2.5,
-                    panEnabled: !_isAnnotating,
-                    scaleEnabled: !_isAnnotating,
-                    child: Container(
-                      width: paperWidth,
-                      margin: const EdgeInsets.symmetric(vertical: 16),
-                      padding: const EdgeInsets.fromLTRB(28, 36, 28, 48),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(4),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x26000000),
-                            blurRadius: 14,
-                            offset: Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Stack(
-                        fit: StackFit.passthrough,
+                onSelected: _setAnnotationColor,
+                itemBuilder: (context) => [
+                  for (final color in ScoreAnnotationColor.values)
+                    PopupMenuItem(
+                      value: color,
+                      child: Row(
                         children: [
-                          NotationScoreView(
-                            key: ValueKey(
-                              '${_selectedType.name}-${arrangement.transposeSemitones}',
-                            ),
-                            musicXml: MusicXmlTransposer.transpose(
-                              arrangement.sourceXml,
-                              arrangement.transposeSemitones,
-                            ),
-                            staffSpace: 12,
-                            staffGap: 156,
-                            interSystemGap: 108,
-                          ),
-                          Positioned.fill(
-                            child: ScoreAnnotationCanvas(
-                              key: _annotationCanvasKey,
-                              annotations: arrangement.annotations,
-                              tool: _annotationTool,
-                              color: _annotationColor,
-                              onChanged: _updateAnnotations,
-                            ),
-                          ),
+                          CircleAvatar(backgroundColor: color.color, radius: 9),
+                          const SizedBox(width: 12),
+                          Text(color.label),
                         ],
                       ),
                     ),
+                ],
+              ),
+              IconButton(
+                tooltip: 'Undo annotation',
+                onPressed: _annotationCanvasKey.currentState?.canUndo ?? false
+                    ? () => _annotationCanvasKey.currentState?.undo()
+                    : null,
+                icon: const Icon(Icons.undo),
+              ),
+              IconButton(
+                tooltip: 'Redo annotation',
+                onPressed: _annotationCanvasKey.currentState?.canRedo ?? false
+                    ? () => _annotationCanvasKey.currentState?.redo()
+                    : null,
+                icon: const Icon(Icons.redo),
+              ),
+              IconButton(
+                tooltip: 'Clear score annotations',
+                onPressed: _arrangement.annotations.isEmpty
+                    ? null
+                    : () => _annotationCanvasKey.currentState?.clear(),
+                icon: const Icon(Icons.layers_clear_outlined),
+              ),
+              const SizedBox(width: 8),
+            ],
+          ),
+          body: Column(
+            children: [
+              _ViewerHeader(
+                arrangement: arrangement,
+                availableTypes: _availableTypes,
+                selectedType: _selectedType,
+                onSelected: _selectType,
+                onTranspose: _setTranspose,
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final paperWidth = (constraints.maxWidth - 32)
+                        .clamp(360.0, 780.0)
+                        .toDouble();
+                    return ColoredBox(
+                      color: Theme.of(context).colorScheme.surfaceContainerLow,
+                      child: InteractiveViewer(
+                        transformationController: _transformation,
+                        alignment: Alignment.topCenter,
+                        boundaryMargin: const EdgeInsets.all(80),
+                        constrained: false,
+                        minScale: 0.6,
+                        maxScale: 2.5,
+                        panEnabled: !_isAnnotating,
+                        scaleEnabled: !_isAnnotating,
+                        child: Container(
+                          width: paperWidth,
+                          margin: const EdgeInsets.symmetric(vertical: 16),
+                          padding: const EdgeInsets.fromLTRB(28, 36, 28, 48),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(4),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color(0x26000000),
+                                blurRadius: 14,
+                                offset: Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Stack(
+                            fit: StackFit.passthrough,
+                            children: [
+                              NotationScoreView(
+                                key: ValueKey(
+                                  '${_selectedType.name}-${arrangement.transposeSemitones}',
+                                ),
+                                musicXml: MusicXmlTransposer.transpose(
+                                  arrangement.sourceXml,
+                                  arrangement.transposeSemitones,
+                                ),
+                                displayPreferences: displayPreferences,
+                              ),
+                              Positioned.fill(
+                                child: ScoreAnnotationCanvas(
+                                  key: _annotationCanvasKey,
+                                  annotations: arrangement.annotations,
+                                  tool: _annotationTool,
+                                  color: _annotationColor,
+                                  onChanged: _updateAnnotations,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ScoreDisplaySettingsSheet extends StatelessWidget {
+  const _ScoreDisplaySettingsSheet({required this.controller});
+
+  final ScoreDisplayController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: ListenableBuilder(
+        listenable: controller,
+        builder: (context, _) {
+          final preferences = controller.preferences;
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Score display',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'These settings apply to every MusicXML score, including Live mode.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 16),
+                _ScoreSizeSlider(
+                  label: 'Lyrics',
+                  value: preferences.lyricFontSize,
+                  minimum: ScoreDisplayPreferences.minimumLyricFontSize,
+                  maximum: ScoreDisplayPreferences.maximumLyricFontSize,
+                  onChanged: controller.setLyricFontSize,
+                ),
+                _ScoreSizeSlider(
+                  label: 'Chords',
+                  value: preferences.chordFontSize,
+                  minimum: ScoreDisplayPreferences.minimumChordFontSize,
+                  maximum: ScoreDisplayPreferences.maximumChordFontSize,
+                  onChanged: controller.setChordFontSize,
+                ),
+                _ScoreSizeSlider(
+                  label: 'Notes and staff',
+                  value: preferences.noteSize,
+                  minimum: ScoreDisplayPreferences.minimumNoteSize,
+                  maximum: ScoreDisplayPreferences.maximumNoteSize,
+                  onChanged: controller.setNoteSize,
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: controller.reset,
+                    icon: const Icon(Icons.restart_alt),
+                    label: const Text('Restore defaults'),
                   ),
-                );
-              },
+                ),
+              ],
             ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ScoreSizeSlider extends StatelessWidget {
+  const _ScoreSizeSlider({
+    required this.label,
+    required this.value,
+    required this.minimum,
+    required this.maximum,
+    required this.onChanged,
+  });
+
+  final String label;
+  final double value;
+  final double minimum;
+  final double maximum;
+  final ValueChanged<double> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: '$label size',
+      value: value.round().toString(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+              ),
+              Text('${value.round()} pt'),
+            ],
+          ),
+          Slider(
+            value: value,
+            min: minimum,
+            max: maximum,
+            divisions: (maximum - minimum).round(),
+            label: '${value.round()} pt',
+            onChanged: onChanged,
           ),
         ],
       ),

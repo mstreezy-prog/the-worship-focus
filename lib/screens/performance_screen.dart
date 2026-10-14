@@ -4,14 +4,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../controllers/performance_controller.dart';
+import '../controllers/score_display_controller.dart';
 import '../models/music_xml_arrangement.dart';
 import '../models/performance_content.dart';
 import '../models/performance_preferences.dart';
 import '../models/score_annotation.dart';
+import '../models/score_display_preferences.dart';
 import '../models/song.dart';
 import '../services/music_xml_transposer.dart';
+import '../widgets/chordpro_performance_view.dart';
 import '../widgets/notation_score_view.dart';
-import '../widgets/preview_panel.dart';
 import '../widgets/score_annotation_canvas.dart';
 
 /// Full-screen presentation for ChordPro and attached MusicXML scores.
@@ -21,6 +23,7 @@ class PerformanceScreen extends StatefulWidget {
     required this.initialIndex,
     this.initialContent = PerformanceContent.chordPro,
     this.songNotes = const <String, String>{},
+    this.initialScoreDisplayPreferences,
     super.key,
   }) : assert(songs.length > 0);
 
@@ -28,6 +31,7 @@ class PerformanceScreen extends StatefulWidget {
   final int initialIndex;
   final PerformanceContent initialContent;
   final Map<String, String> songNotes;
+  final ScoreDisplayPreferences? initialScoreDisplayPreferences;
 
   @override
   State<PerformanceScreen> createState() => _PerformanceScreenState();
@@ -35,14 +39,18 @@ class PerformanceScreen extends StatefulWidget {
 
 class _PerformanceScreenState extends State<PerformanceScreen> {
   final PerformanceController _controller = PerformanceController();
+  late final ScoreDisplayController _scoreDisplayController;
   late final PageController _pageController;
+  late final List<PageController> _chordProPageControllers;
   late final List<ScrollController> _scrollControllers;
   late final Map<String, PerformanceContent> _contentBySongId;
+  late final Map<String, int> _chordProPageCounts;
+  late final Map<String, int> _chordProPages;
   late int _currentIndex;
-  Timer? _scrollTimer;
   bool _showControls = true;
   bool _canGoBackScorePage = false;
   bool _canGoForwardScorePage = false;
+  late ScoreDisplayPreferences _scoreDisplayPreferences;
 
   Song get _currentSong => widget.songs[_currentIndex];
 
@@ -71,12 +79,21 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
   @override
   void initState() {
     super.initState();
+    _scoreDisplayPreferences =
+        widget.initialScoreDisplayPreferences ??
+        const ScoreDisplayPreferences();
+    _scoreDisplayController = ScoreDisplayController();
+    unawaited(_initializeScoreDisplayPreferences());
     _currentIndex = widget.initialIndex < 0
         ? 0
         : widget.initialIndex >= widget.songs.length
         ? widget.songs.length - 1
         : widget.initialIndex;
     _pageController = PageController(initialPage: _currentIndex);
+    _chordProPageControllers = List.generate(
+      widget.songs.length,
+      (_) => PageController(),
+    );
     _scrollControllers = List.generate(
       widget.songs.length,
       (_) => ScrollController(),
@@ -90,13 +107,25 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
             ? widget.initialContent
             : PerformanceContent.chordPro,
     };
+    _chordProPageCounts = {for (final song in widget.songs) song.id: 1};
+    _chordProPages = {for (final song in widget.songs) song.id: 0};
     unawaited(_controller.initialize());
+  }
+
+  Future<void> _initializeScoreDisplayPreferences() async {
+    await _scoreDisplayController.initialize();
+    if (!mounted || widget.initialScoreDisplayPreferences != null) return;
+    setState(
+      () => _scoreDisplayPreferences = _scoreDisplayController.preferences,
+    );
   }
 
   @override
   void dispose() {
-    _scrollTimer?.cancel();
     _pageController.dispose();
+    for (final controller in _chordProPageControllers) {
+      controller.dispose();
+    }
     for (final controller in _scrollControllers) {
       controller
         ..removeListener(_refreshScrollControls)
@@ -104,6 +133,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
     }
     unawaited(_controller.deactivate());
     _controller.dispose();
+    _scoreDisplayController.dispose();
     super.dispose();
   }
 
@@ -136,9 +166,6 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
   void _selectContent(PerformanceContent content) {
     if (!_availableContent(_currentSong).contains(content)) return;
     if (_currentContent == content) return;
-    if (content != PerformanceContent.chordPro && _controller.autoScrolling) {
-      _stopAutoScroll();
-    }
     setState(() {
       _contentBySongId[_currentSong.id] = content;
       _canGoBackScorePage = false;
@@ -152,36 +179,52 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
     });
   }
 
-  void _toggleAutoScroll() {
-    if (_showingScore) return;
-    _controller.toggleAutoScroll();
-    if (_controller.autoScrolling) {
-      _scrollTimer?.cancel();
-      _scrollTimer = Timer.periodic(
-        const Duration(milliseconds: 50),
-        (_) => _advanceScroll(),
-      );
+  int get _currentChordProPage => _chordProPages[_currentSong.id] ?? 0;
+
+  int get _currentChordProPageCount =>
+      _chordProPageCounts[_currentSong.id] ?? 1;
+
+  void _changeChordProPage(int direction) {
+    final target = (_currentChordProPage + direction).clamp(
+      0,
+      _currentChordProPageCount - 1,
+    );
+    if (target == _currentChordProPage) return;
+    _chordProPageControllers[_currentIndex].animateToPage(
+      target,
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  void _resetChordProPage() {
+    final songId = _currentSong.id;
+    _chordProPages[songId] = 0;
+    final controller = _chordProPageControllers[_currentIndex];
+    if (controller.hasClients) controller.jumpToPage(0);
+    setState(() {});
+  }
+
+  void _changeChordProColumns() {
+    _controller.toggleChordProColumns();
+    _resetChordProPage();
+  }
+
+  void _changeChordProFontSize(bool increase) {
+    if (increase) {
+      _controller.increaseFontSize();
     } else {
-      _stopAutoScroll();
+      _controller.decreaseFontSize();
     }
+    _resetChordProPage();
   }
 
-  void _stopAutoScroll() {
-    if (_controller.autoScrolling) _controller.toggleAutoScroll();
-    _scrollTimer?.cancel();
-    _scrollTimer = null;
-  }
-
-  void _advanceScroll() {
-    final scrollController = _scrollControllers[_currentIndex];
-    if (!scrollController.hasClients) return;
-    final position = scrollController.position;
-    final next = position.pixels + _controller.preferences.scrollSpeed / 20;
-    if (next >= position.maxScrollExtent) {
-      _stopAutoScroll();
-      return;
+  void _changeCurrentPage(int direction) {
+    if (_showingScore) {
+      _changeScorePage(direction);
+    } else {
+      _changeChordProPage(direction);
     }
-    scrollController.jumpTo(next);
   }
 
   void _changeScorePage(int direction) {
@@ -224,21 +267,22 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                   const SingleActivator(LogicalKeyboardKey.arrowRight): () =>
                       _showSong(_currentIndex + 1),
                   const SingleActivator(LogicalKeyboardKey.arrowUp): () =>
-                      _changeScorePage(-1),
+                      _changeCurrentPage(-1),
                   const SingleActivator(LogicalKeyboardKey.arrowDown): () =>
-                      _changeScorePage(1),
+                      _changeCurrentPage(1),
                   const SingleActivator(LogicalKeyboardKey.pageUp): () =>
-                      _changeScorePage(-1),
+                      _changeCurrentPage(-1),
                   const SingleActivator(LogicalKeyboardKey.pageDown): () =>
-                      _changeScorePage(1),
-                  const SingleActivator(LogicalKeyboardKey.space):
-                      _toggleAutoScroll,
-                  const SingleActivator(LogicalKeyboardKey.minus):
-                      _controller.decreaseFontSize,
-                  const SingleActivator(LogicalKeyboardKey.equal):
-                      _controller.increaseFontSize,
-                  const SingleActivator(LogicalKeyboardKey.equal, shift: true):
-                      _controller.increaseFontSize,
+                      _changeCurrentPage(1),
+                  const SingleActivator(LogicalKeyboardKey.minus): () =>
+                      _changeChordProFontSize(false),
+                  const SingleActivator(LogicalKeyboardKey.equal): () =>
+                      _changeChordProFontSize(true),
+                  const SingleActivator(
+                    LogicalKeyboardKey.equal,
+                    shift: true,
+                  ): () =>
+                      _changeChordProFontSize(true),
                   const SingleActivator(LogicalKeyboardKey.escape): () =>
                       Navigator.maybePop(context),
                 },
@@ -271,9 +315,11 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                               bottom: _showControls ? 84 : 8,
                             ),
                             child: _buildContent(
+                              songIndex: index,
                               song: song,
                               content: content,
                               preferences: preferences,
+                              scoreDisplayPreferences: _scoreDisplayPreferences,
                               scrollController: _scrollControllers[index],
                             ),
                           );
@@ -305,17 +351,28 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
   }
 
   Widget _buildContent({
+    required int songIndex,
     required Song song,
     required PerformanceContent content,
     required PerformancePreferences preferences,
+    required ScoreDisplayPreferences scoreDisplayPreferences,
     required ScrollController scrollController,
   }) {
     if (content == PerformanceContent.chordPro) {
-      return PreviewPanel(
+      return ChordProPerformanceView(
         song: song,
-        performance: true,
         fontSize: preferences.fontSize,
-        scrollController: scrollController,
+        twoColumns: preferences.chordProColumns == ChordProColumnLayout.two,
+        pageController: _chordProPageControllers[songIndex],
+        onPageChanged: (page) {
+          _chordProPages[song.id] = page;
+          if (songIndex == _currentIndex) setState(() {});
+        },
+        onPageCountChanged: (count) {
+          if (_chordProPageCounts[song.id] == count) return;
+          _chordProPageCounts[song.id] = count;
+          if (songIndex == _currentIndex) setState(() {});
+        },
       );
     }
     final arrangement = song.arrangement(content.arrangementType!)!;
@@ -323,6 +380,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
       arrangement: arrangement,
       scrollController: scrollController,
       onMetricsChanged: _refreshScrollControls,
+      displayPreferences: scoreDisplayPreferences,
     );
   }
 
@@ -436,7 +494,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                     tooltip: 'Decrease font size',
                     onPressed: preferences.fontSize <= 14
                         ? null
-                        : _controller.decreaseFontSize,
+                        : () => _changeChordProFontSize(false),
                     icon: const Icon(Icons.text_decrease),
                   ),
                   Text('${preferences.fontSize.round()} pt'),
@@ -444,7 +502,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                     tooltip: 'Increase font size',
                     onPressed: preferences.fontSize >= 36
                         ? null
-                        : _controller.increaseFontSize,
+                        : () => _changeChordProFontSize(true),
                     icon: const Icon(Icons.text_increase),
                   ),
                 ] else ...[
@@ -480,36 +538,37 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                 ),
                 if (content == PerformanceContent.chordPro) ...[
                   const SizedBox(width: 8),
-                  const Text('Scroll'),
-                  const SizedBox(width: 8),
-                  DropdownButton<double>(
-                    value:
-                        const [
-                          12.0,
-                          24.0,
-                          40.0,
-                        ].contains(preferences.scrollSpeed)
-                        ? preferences.scrollSpeed
-                        : 24.0,
-                    underline: const SizedBox.shrink(),
-                    onChanged: (value) {
-                      if (value != null) _controller.setScrollSpeed(value);
-                    },
-                    items: const [
-                      DropdownMenuItem(value: 12.0, child: Text('Slow')),
-                      DropdownMenuItem(value: 24.0, child: Text('Medium')),
-                      DropdownMenuItem(value: 40.0, child: Text('Fast')),
-                    ],
+                  IconButton.filledTonal(
+                    tooltip: 'Previous ChordPro page',
+                    onPressed: _currentChordProPage == 0
+                        ? null
+                        : () => _changeChordProPage(-1),
+                    icon: const Icon(Icons.keyboard_arrow_up),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Page ${_currentChordProPage + 1}/$_currentChordProPageCount',
                   ),
                   IconButton.filledTonal(
-                    tooltip: _controller.autoScrolling
-                        ? 'Pause auto-scroll'
-                        : 'Start auto-scroll',
-                    onPressed: _toggleAutoScroll,
+                    tooltip: 'Next ChordPro page',
+                    onPressed:
+                        _currentChordProPage >= _currentChordProPageCount - 1
+                        ? null
+                        : () => _changeChordProPage(1),
+                    icon: const Icon(Icons.keyboard_arrow_down),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton.tonalIcon(
+                    onPressed: _changeChordProColumns,
                     icon: Icon(
-                      _controller.autoScrolling
-                          ? Icons.pause
-                          : Icons.play_arrow,
+                      preferences.chordProColumns == ChordProColumnLayout.two
+                          ? Icons.view_column_outlined
+                          : Icons.view_agenda_outlined,
+                    ),
+                    label: Text(
+                      preferences.chordProColumns == ChordProColumnLayout.two
+                          ? 'Two columns'
+                          : 'One column',
                     ),
                   ),
                 ],
@@ -545,11 +604,13 @@ class _ScorePerformanceView extends StatelessWidget {
     required this.arrangement,
     required this.scrollController,
     required this.onMetricsChanged,
+    required this.displayPreferences,
   });
 
   final MusicXmlArrangement arrangement;
   final ScrollController scrollController;
   final VoidCallback onMetricsChanged;
+  final ScoreDisplayPreferences displayPreferences;
 
   @override
   Widget build(BuildContext context) {
@@ -595,9 +656,7 @@ class _ScorePerformanceView extends StatelessWidget {
                           arrangement.sourceXml,
                           arrangement.transposeSemitones,
                         ),
-                        staffSpace: 12,
-                        staffGap: 156,
-                        interSystemGap: 108,
+                        displayPreferences: displayPreferences,
                       ),
                       Positioned.fill(
                         child: ScoreAnnotationCanvas(

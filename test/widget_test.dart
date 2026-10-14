@@ -15,11 +15,13 @@ void main() {
 
     await tester.pumpWidget(const WorshipFocusStudioApp());
 
-    expect(find.text('Worship Focus'), findsWidgets);
+    expect(find.text('The Worship Focus'), findsWidgets);
     expect(find.text('Library'), findsOneWidget);
     expect(find.text('Amazing Grace'), findsWidgets);
     expect(find.text('ChordPro editor'), findsOneWidget);
-    expect(find.text('Live preview'), findsOneWidget);
+    expect(find.widgetWithText(Tab, 'Editor'), findsOneWidget);
+    expect(find.widgetWithText(Tab, 'Preview'), findsOneWidget);
+    expect(find.widgetWithText(Tab, 'MusicXML'), findsOneWidget);
     expect(find.byTooltip('Live mode'), findsOneWidget);
     expect(find.byTooltip('Import ChordPro'), findsOneWidget);
     expect(find.byTooltip('Library backup'), findsOneWidget);
@@ -45,9 +47,49 @@ void main() {
     expect(find.text('Live mode'), findsOneWidget);
     expect(find.byTooltip('Decrease font size'), findsOneWidget);
     expect(find.byTooltip('Increase font size'), findsOneWidget);
-    expect(find.byTooltip('Start auto-scroll'), findsOneWidget);
+    expect(find.byTooltip('Previous ChordPro page'), findsOneWidget);
+    expect(find.byTooltip('Next ChordPro page'), findsOneWidget);
+    expect(find.text('One column'), findsOneWidget);
     expect(find.byTooltip('Keep screen awake'), findsOneWidget);
     expect(find.byTooltip('Next song'), findsOneWidget);
+
+    await tester.tap(find.text('One column'));
+    await tester.pump();
+    expect(find.text('Two columns'), findsOneWidget);
+  });
+
+  testWidgets('shows ChordPro header notes on the first live page', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: PerformanceScreen(
+          songs: [
+            Song(
+              id: 'header-song',
+              title: 'Header Song',
+              chordPro: '''{title: Header Song}
+{tempo: 84}
+{time: 6/8}
+{order: Intro V1 C V2 C}
+{comment: Start quietly.}
+[G]Test lyrics''',
+            ),
+          ],
+          initialIndex: 0,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      find.byKey(const ValueKey('chordpro-song-information')),
+      findsOneWidget,
+    );
+    expect(find.text('Tempo: 84 BPM'), findsOneWidget);
+    expect(find.text('Time: 6/8'), findsOneWidget);
+    expect(find.text('Order: Intro V1 C V2 C'), findsOneWidget);
+    expect(find.text('Start quietly.'), findsOneWidget);
   });
 
   testWidgets('shows service section text in live mode', (tester) async {
@@ -73,17 +115,17 @@ void main() {
     );
   });
 
-  testWidgets('shows lead-sheet and full-piano MusicXML slots', (tester) async {
+  testWidgets('shows MusicXML as a tab for the selected song', (tester) async {
     tester.view.physicalSize = const Size(1366, 1024);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(const WorshipFocusStudioApp());
-    await tester.tap(find.text('MusicXML'));
+    await tester.tap(find.widgetWithText(Tab, 'MusicXML'));
     await tester.pumpAndSettle();
 
-    expect(find.text('MusicXML arrangements'), findsOneWidget);
+    expect(find.text('MusicXML scores'), findsOneWidget);
     expect(find.text('Lead Sheet'), findsOneWidget);
     expect(find.text('Full Piano'), findsOneWidget);
     expect(find.text('Import'), findsNWidgets(2));
@@ -101,14 +143,16 @@ void main() {
     expect(find.byTooltip('Save ChordPro as'), findsNothing);
   });
 
-  testWidgets('shows MusicXML arrangement cards in portrait', (tester) async {
+  testWidgets('shows MusicXML arrangement cards in portrait song workspace', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(820, 1180);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(const WorshipFocusStudioApp());
-    await tester.tap(find.text('MusicXML'));
+    await tester.tap(find.widgetWithText(Tab, 'MusicXML'));
     await tester.pumpAndSettle();
 
     expect(find.text('Lead Sheet'), findsOneWidget);

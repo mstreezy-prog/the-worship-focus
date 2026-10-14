@@ -8,8 +8,15 @@ import 'package:xml/xml.dart';
 class MusicXmlDisplayTransformer {
   MusicXmlDisplayTransformer._();
 
+  static final RegExp _sectionLabel = RegExp(
+    r'^(?:intro|outro|ending|interlude|instrumental|vamp|tag|refrain|bridge|pre[- ]?chorus|chorus|verse|v)(?:\s*(?:\d+|[ivx]+))?$',
+    caseSensitive: false,
+  );
+
   static String prepare(String sourceXml) {
-    if (!sourceXml.contains('<harmony')) return sourceXml;
+    if (!sourceXml.contains('<harmony') && !sourceXml.contains('<words')) {
+      return sourceXml;
+    }
     try {
       final document = XmlDocument.parse(sourceXml);
       var changed = false;
@@ -30,6 +37,25 @@ class MusicXmlDisplayTransformer {
           measure.children.insert(index, _chordDirection(text));
           changed = true;
         }
+      }
+      for (final words
+          in document.descendants
+              .whereType<XmlElement>()
+              .where((element) => element.name.local == 'words')
+              .toList()) {
+        final text = words.innerText.trim();
+        if (!_sectionLabel.hasMatch(text)) continue;
+        final parent = words.parent;
+        if (parent is! XmlElement) continue;
+        final index = parent.children.indexOf(words);
+        if (index == -1) continue;
+        parent.children[index] = XmlElement(
+          const XmlName.qualified('rehearsal'),
+          const [],
+          [XmlText(text)],
+          false,
+        );
+        changed = true;
       }
       return changed ? document.toXmlString() : sourceXml;
     } on XmlParserException {
