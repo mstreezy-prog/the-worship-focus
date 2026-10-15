@@ -22,6 +22,13 @@ void main() {
       ),
     );
 
+    final canvas = find
+        .descendant(
+          of: find.byType(ChordDiagram),
+          matching: find.byType(CustomPaint),
+        )
+        .last;
+    expect(tester.getSize(canvas).width, greaterThan(0));
     expect(find.text('G'), findsOneWidget);
     expect(find.bySemanticsLabel('G chord diagram'), findsOneWidget);
   });

@@ -224,8 +224,7 @@ class LayoutEngine {
   late final BeamAnalyzer _beamAnalyzer;
   final Map<Note, double> _noteXPositions = {};
   final Map<Note, int> _noteStaffPositions = {};
-  final Map<Note, double> _noteYPositions =
-      {}; // ✅ NOVO: Y absoluto em pixels
+  final Map<Note, double> _noteYPositions = {}; // ✅ NOVO: Y absoluto em pixels
   final List<AdvancedBeamGroup> _advancedBeamGroups = [];
 
   /// Within-measure accidental display decision per note (Behind Bars rule),
@@ -235,6 +234,9 @@ class LayoutEngine {
 
   // Configuresção de validação (silenciosa by default)
   final bool verboseValidation;
+
+  /// Whether an implicit end of this layout fragment should close the piece.
+  final bool automaticFinalBarline;
 
   // Fix: SMuFL: Larguras agora consultadas dinamicamente of the metadata
   // Valores de fallback mantidos for compatibilidade
@@ -250,8 +252,7 @@ class LayoutEngine {
   // Intelligent spacing: Valores balanceados
   static const double systemMargin = 2.5;
   static const double measureMinWidth = 5.0;
-  static const double noteMinSpacing =
-      3.5; // Base para espaçamento entre notas
+  static const double noteMinSpacing = 3.5; // Base para espaçamento entre notas
   static const double measureEndPadding =
       3.0; // Espaço adequado ANTES da barline (agora corrigido!)
 
@@ -260,11 +261,13 @@ class LayoutEngine {
     required this.availableWidth,
     this.staffSpace = 12.0,
     this.metadata,
+    this.automaticFinalBarline = true,
     this.verboseValidation = false, // Silencioso por padrão
     spacing.SpacingPreferences? spacingPreferences,
   }) {
     // Initialise spacing engine
-    _spacingPreferences = spacingPreferences ?? spacing.SpacingPreferences.normal;
+    _spacingPreferences =
+        spacingPreferences ?? spacing.SpacingPreferences.normal;
     _spacingEngine = spacing.IntelligentSpacingEngine(
       preferences: _spacingPreferences,
     );
@@ -273,9 +276,7 @@ class LayoutEngine {
     // Initialise positioning engine for beaming
     // Validation: metadata can be null in some context
     if (metadata == null) {
-      throw ArgumentError(
-        'metadata é obrigatório para beaming avançado',
-      );
+      throw ArgumentError('metadata é obrigatório para beaming avançado');
     }
     final positioningEngine = SMuFLPositioningEngine(metadataLoader: metadata!);
 
@@ -506,7 +507,7 @@ class LayoutEngine {
       // 1. Next measure not começar with a
       // 2. Current measure not terminar with a
       if (!nextMeasureStartsWithBarline && !currentMeasureEndsWithBarline) {
-        if (isLast) {
+        if (isLast && automaticFinalBarline) {
           // Double barline Final
           cursor.advance(measureEndPadding * staffSpace);
           cursor.addDoubleBarline(positionedElements);
@@ -698,15 +699,17 @@ class LayoutEngine {
       // Only a true full-bar rest: a whole rest (used as a measure rest in any
       // meter) or a rest whose value fills the measure.
       final ts = measure.timeSignature ?? measure.inheritedTimeSignature;
-      final isFullBar = rest.duration.type == DurationType.whole ||
+      final isFullBar =
+          rest.duration.type == DurationType.whole ||
           (ts != null &&
               !ts.isFreeTime &&
               rest.duration.realValue >= ts.measureValue - 1e-6);
       if (!isFullBar) continue;
 
       final start = measureStartIndices[i]!;
-      final end =
-          ki + 1 < keys.length ? measureStartIndices[keys[ki + 1]]! : elements.length;
+      final end = ki + 1 < keys.length
+          ? measureStartIndices[keys[ki + 1]]!
+          : elements.length;
 
       var restIdx = -1;
       double? barlineX;
@@ -1252,7 +1255,8 @@ class LayoutEngine {
       if (element.isAdditive) {
         // Group digits + one '+' separator slot per inter-group gap.
         final groups = element.additiveGroups!;
-        numDigits = groups.fold<int>(0, (a, g) => a + g.numerator.toString().length) +
+        numDigits =
+            groups.fold<int>(0, (a, g) => a + g.numerator.toString().length) +
             (groups.length - 1);
       } else {
         numDigits = element.numerator.toString().length;

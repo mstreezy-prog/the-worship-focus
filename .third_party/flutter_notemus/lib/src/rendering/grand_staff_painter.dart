@@ -101,6 +101,8 @@ class GrandStaffPainter extends CustomPainter {
   _StaffLayout _layoutSubStaff(Staff staff) {
     final engine = LayoutEngine(
       staff,
+      // A wrapped staff is a layout fragment, not the end of a piece.
+      automaticFinalBarline: false,
       // Very wide so a system never wraps internally — breaks are decided here.
       availableWidth: (availableWidth - _bracePad) * 1000,
       staffSpace: staffSpace,

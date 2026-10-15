@@ -1,6 +1,10 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_notemus/flutter_notemus.dart';
+// Keep the dependency's engraving adapter confined to this service.
+// Pinned vendored dependency: its public widget does not expose system metrics.
+// ignore: implementation_imports
+import 'package:flutter_notemus/src/rendering/grand_staff_painter.dart';
 
 import '../models/score_display_preferences.dart';
 
@@ -88,6 +92,25 @@ class NotationDocument {
   int get staffCount =>
       _score.staffGroups.fold(0, (total, group) => total + group.staves.length);
 
+  NotationCanvas layout({
+    required double width,
+    required ScoreDisplayPreferences preferences,
+  }) {
+    if (staffCount == 0) {
+      return const NotationCanvas(painter: null, height: 1);
+    }
+    final painter = GrandStaffPainter(
+      groups: _score.staffGroups,
+      staffSpace: preferences.noteSize,
+      metadata: SmuflMetadata(),
+      theme: NotationRenderer.scoreThemeFor(preferences),
+      availableWidth: width,
+      staffGap: preferences.staffGap,
+      interSystemGap: preferences.interSystemGap,
+    );
+    return NotationCanvas(painter: painter, height: painter.totalHeight);
+  }
+
   Widget buildView({
     Key? key,
     double staffSpace = 10,
@@ -104,4 +127,10 @@ class NotationDocument {
       theme: theme ?? NotationRenderer.scoreTheme,
     );
   }
+}
+
+class NotationCanvas {
+  const NotationCanvas({required this.painter, required this.height});
+  final CustomPainter? painter;
+  final double height;
 }

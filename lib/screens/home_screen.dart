@@ -45,6 +45,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final ChordProDocumentService _documents = ChordProDocumentService();
   final MusicXmlDocumentService _musicXmlDocuments = MusicXmlDocumentService();
   final LibraryBackupService _libraryBackup = LibraryBackupService();
+  bool _editing = false;
   UndoHistoryController _undoController = UndoHistoryController();
 
   @override
@@ -78,6 +79,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   void _selectSong(Song song) {
+    setState(() => _editing = true);
     if (_controller.selectedSong?.id == song.id) return;
     _resetUndoHistory();
     _controller.selectSong(song);
@@ -95,6 +97,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       MaterialPageRoute<void>(
         builder: (context) => PerformanceScreen(
           songs: songs,
+          onAnnotationsChanged: _controller.updateChordProAnnotations,
+          onScoreAnnotationsChanged: _controller.updateScoreAnnotations,
           initialIndex: initialIndex < 0 ? 0 : initialIndex,
           initialContent: initialContent,
         ),
@@ -126,6 +130,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       MaterialPageRoute<void>(
         builder: (context) => PerformanceScreen(
           songs: songs,
+          onAnnotationsChanged: _controller.updateChordProAnnotations,
+          onScoreAnnotationsChanged: _controller.updateScoreAnnotations,
           initialIndex: 0,
           songNotes: songNotes,
         ),
@@ -178,6 +184,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void _createSong() {
     _resetUndoHistory();
     _controller.createSong();
+    setState(() => _editing = true);
   }
 
   void _duplicateSong(Song song) {
@@ -366,6 +373,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         builder: (context) => MusicXmlViewerScreen(
           song: song,
           initialType: type,
+          performanceSongs: _controller.songs,
+          onPerformanceScoreAnnotationsChanged:
+              _controller.updateScoreAnnotations,
+          onPerformanceChordProAnnotationsChanged:
+              _controller.updateChordProAnnotations,
           onTranspose: _controller.setMusicXmlTranspose,
           onAnnotationsChanged: _controller.setMusicXmlAnnotations,
         ),
@@ -433,6 +445,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (_controller.section != LibrarySection.songs) {
       return [_buildLibraryBackupMenu(), const SizedBox(width: 8)];
     }
+    if (!_editing) {
+      return [
+        IconButton(
+          tooltip: 'Import ChordPro',
+          onPressed: _importChordPro,
+          icon: const Icon(Icons.file_open_outlined),
+        ),
+        _buildLibraryBackupMenu(),
+      ];
+    }
     final song = _controller.selectedSong;
     return [
       IconButton(
@@ -457,7 +479,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           icon: const Icon(Icons.add),
         ),
         IconButton(
-          tooltip: 'Live mode',
+          tooltip: 'Music Stand',
           onPressed: () => _openPerformance(song),
           icon: const Icon(Icons.fullscreen),
         ),
@@ -498,7 +520,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               value: _ToolbarAction.performance,
               child: ListTile(
                 leading: Icon(Icons.fullscreen),
-                title: Text('Live mode'),
+                title: Text('Music Stand'),
               ),
             ),
             PopupMenuItem(
@@ -570,7 +592,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ),
                 actions: _buildAppActions(wide),
               ),
-              body: wide ? _buildWideLayout() : _buildCompactLayout(),
+              body: Column(
+                children: [
+                  _buildStandLaunch(),
+                  Expanded(
+                    child: wide ? _buildWideLayout() : _buildCompactLayout(),
+                  ),
+                ],
+              ),
               bottomNavigationBar: wide
                   ? null
                   : LibrarySidebar(
@@ -599,9 +628,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         if (_controller.section == LibrarySection.servicePlans)
           Expanded(flex: 10, child: _buildSection())
         else ...[
-          Expanded(flex: 3, child: _buildSongList()),
-          const VerticalDivider(width: 1),
-          Expanded(flex: 7, child: _buildSongWorkspace()),
+          Expanded(flex: _editing ? 3 : 10, child: _buildSongList()),
+          if (_editing) ...[
+            const VerticalDivider(width: 1),
+            Expanded(flex: 7, child: _buildSongWorkspace()),
+          ],
         ],
       ],
     );
@@ -611,6 +642,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (_controller.section == LibrarySection.servicePlans) {
       return _buildSection();
     }
+    if (!_editing) return _buildSongList();
     final song = _controller.selectedSong;
     return Column(
       children: [
@@ -621,6 +653,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             flex: 7,
             child: Column(
               children: [
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: () => setState(() => _editing = false),
+                    icon: const Icon(Icons.close),
+                    label: const Text('Done editing'),
+                  ),
+                ),
                 SongMetadataEditor(
                   song: song,
                   onTitleChanged: _controller.updateTitle,
@@ -697,6 +737,58 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
+  Widget _buildStandLaunch() {
+    final plan = _controller.selectedServicePlan;
+    final ready =
+        plan != null &&
+        plan.items.isNotEmpty &&
+        _controller.saveState != LibrarySaveState.loading;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+      child: Card.filled(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Wrap(
+            spacing: 24,
+            runSpacing: 16,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    plan?.title ?? 'Ready for worship',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    plan == null
+                        ? 'Create a service plan to build your set.'
+                        : '${plan.items.length} items • Your selected service',
+                  ),
+                ],
+              ),
+              FilledButton.icon(
+                onPressed: ready
+                    ? () => _openServicePlanPerformance(plan)
+                    : null,
+                icon: const Icon(Icons.chrome_reader_mode_outlined),
+                label: const Text('Open Music Stand'),
+              ),
+              TextButton.icon(
+                onPressed: () =>
+                    _controller.selectSection(LibrarySection.servicePlans),
+                icon: const Icon(Icons.playlist_play),
+                label: const Text('Plan service'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildSongWorkspace() {
     final song = _controller.selectedSong;
     if (song == null) {
@@ -704,6 +796,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
     return Column(
       children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton.icon(
+            onPressed: () => setState(() => _editing = false),
+            icon: const Icon(Icons.close),
+            label: const Text('Done editing'),
+          ),
+        ),
         SongMetadataEditor(
           song: song,
           onTitleChanged: _controller.updateTitle,
@@ -721,6 +821,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return DefaultTabController(
       key: ValueKey('song-workspace-${song.id}'),
       length: 3,
+      initialIndex: 1,
       child: Column(
         children: [
           const TabBar(

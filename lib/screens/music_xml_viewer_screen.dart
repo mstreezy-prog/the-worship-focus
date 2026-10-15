@@ -1,6 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
+
+import '../controllers/reader_annotation_controller.dart';
 
 import '../controllers/score_display_controller.dart';
 import '../models/music_xml_arrangement.dart';
@@ -9,7 +12,7 @@ import '../models/score_annotation.dart';
 import '../models/score_display_preferences.dart';
 import '../models/song.dart';
 import '../services/music_xml_transposer.dart';
-import '../widgets/notation_score_view.dart';
+import '../widgets/scrollable_score_view.dart';
 import '../widgets/score_annotation_canvas.dart';
 import 'performance_screen.dart';
 
@@ -20,12 +23,24 @@ class MusicXmlViewerScreen extends StatefulWidget {
     required this.onTranspose,
     required this.onAnnotationsChanged,
     this.displayController,
+    this.performanceSongs,
+    this.onPerformanceScoreAnnotationsChanged,
+    this.onPerformanceChordProAnnotationsChanged,
     super.key,
   }) : assert(
          song.leadSheet != null || song.fullPiano != null,
          'The score viewer requires an attached MusicXML arrangement.',
        );
 
+  final List<Song>? performanceSongs;
+  final void Function(
+    String,
+    MusicXmlArrangementType,
+    List<ScoreAnnotationStroke>,
+  )?
+  onPerformanceScoreAnnotationsChanged;
+  final void Function(String, Map<String, List<ScoreAnnotationStroke>>)?
+  onPerformanceChordProAnnotationsChanged;
   final Song song;
   final MusicXmlArrangementType initialType;
   final MusicXmlTransposeCallback onTranspose;
@@ -38,8 +53,10 @@ class MusicXmlViewerScreen extends StatefulWidget {
 
 class _MusicXmlViewerScreenState extends State<MusicXmlViewerScreen> {
   final TransformationController _transformation = TransformationController();
-  final GlobalKey<ScoreAnnotationCanvasState> _annotationCanvasKey =
-      GlobalKey<ScoreAnnotationCanvasState>();
+  final Map<MusicXmlArrangementType, ReaderAnnotationController>
+  _annotationControllers = {};
+  ReaderAnnotationController get _annotationController =>
+      _annotationControllers[_selectedType]!;
   late MusicXmlArrangementType _selectedType;
   late final Map<MusicXmlArrangementType, int> _transposeSemitones;
   late final Map<MusicXmlArrangementType, List<ScoreAnnotationStroke>>
@@ -77,15 +94,34 @@ class _MusicXmlViewerScreenState extends State<MusicXmlViewerScreen> {
   );
 
   void _openPerformance() {
+    final songs = (widget.performanceSongs ?? [widget.song])
+        .map((song) => song.id == widget.song.id ? _performanceSong : song)
+        .toList();
+    if (!songs.any((song) => song.id == widget.song.id)) {
+      songs.add(_performanceSong);
+    }
+    final index = songs.indexWhere((song) => song.id == widget.song.id);
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (context) => PerformanceScreen(
-          songs: [_performanceSong],
-          initialIndex: 0,
+          songs: songs,
+          initialIndex: index,
           initialContent: PerformanceContentDetails.fromArrangement(
             _selectedType,
           ),
           initialScoreDisplayPreferences: _displayController.preferences,
+          onAnnotationsChanged: widget.onPerformanceChordProAnnotationsChanged,
+          onScoreAnnotationsChanged: (songId, type, strokes) {
+            if (songId == widget.song.id) {
+              _annotationControllers[type]!.update('score', strokes);
+            } else {
+              widget.onPerformanceScoreAnnotationsChanged?.call(
+                songId,
+                type,
+                strokes,
+              );
+            }
+          },
         ),
         fullscreenDialog: true,
       ),
@@ -105,6 +141,18 @@ class _MusicXmlViewerScreenState extends State<MusicXmlViewerScreen> {
       for (final type in _availableTypes)
         type: widget.song.arrangement(type)!.transposeSemitones,
     };
+    for (final type in _availableTypes) {
+      final controller = ReaderAnnotationController({
+        'score': widget.song.arrangement(type)!.annotations,
+      });
+      _annotationControllers[type] = controller;
+      controller.addListener(() {
+        final strokes =
+            controller.annotations['score'] ?? const <ScoreAnnotationStroke>[];
+        setState(() => _annotations[type] = strokes);
+        widget.onAnnotationsChanged(type, strokes);
+      });
+    }
     _annotations = {
       for (final type in _availableTypes)
         type: widget.song.arrangement(type)!.annotations,
@@ -114,6 +162,9 @@ class _MusicXmlViewerScreenState extends State<MusicXmlViewerScreen> {
   @override
   void dispose() {
     _transformation.dispose();
+    for (final controller in _annotationControllers.values) {
+      controller.dispose();
+    }
     if (_ownsDisplayController) _displayController.dispose();
     super.dispose();
   }
@@ -136,11 +187,6 @@ class _MusicXmlViewerScreenState extends State<MusicXmlViewerScreen> {
 
   void _setAnnotationColor(ScoreAnnotationColor color) {
     setState(() => _annotationColor = color);
-  }
-
-  void _updateAnnotations(List<ScoreAnnotationStroke> annotations) {
-    setState(() => _annotations[_selectedType] = annotations);
-    widget.onAnnotationsChanged(_selectedType, annotations);
   }
 
   void _zoom(double factor) {
@@ -267,15 +313,15 @@ class _MusicXmlViewerScreenState extends State<MusicXmlViewerScreen> {
               ),
               IconButton(
                 tooltip: 'Undo annotation',
-                onPressed: _annotationCanvasKey.currentState?.canUndo ?? false
-                    ? () => _annotationCanvasKey.currentState?.undo()
+                onPressed: _annotationController.canUndo
+                    ? _annotationController.undo
                     : null,
                 icon: const Icon(Icons.undo),
               ),
               IconButton(
                 tooltip: 'Redo annotation',
-                onPressed: _annotationCanvasKey.currentState?.canRedo ?? false
-                    ? () => _annotationCanvasKey.currentState?.redo()
+                onPressed: _annotationController.canRedo
+                    ? _annotationController.redo
                     : null,
                 icon: const Icon(Icons.redo),
               ),
@@ -283,7 +329,7 @@ class _MusicXmlViewerScreenState extends State<MusicXmlViewerScreen> {
                 tooltip: 'Clear score annotations',
                 onPressed: _arrangement.annotations.isEmpty
                     ? null
-                    : () => _annotationCanvasKey.currentState?.clear(),
+                    : () => _annotationController.update('score', const []),
                 icon: const Icon(Icons.layers_clear_outlined),
               ),
               const SizedBox(width: 8),
@@ -300,65 +346,27 @@ class _MusicXmlViewerScreenState extends State<MusicXmlViewerScreen> {
               ),
               const Divider(height: 1),
               Expanded(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final paperWidth = (constraints.maxWidth - 32)
-                        .clamp(360.0, 780.0)
-                        .toDouble();
-                    return ColoredBox(
-                      color: Theme.of(context).colorScheme.surfaceContainerLow,
-                      child: InteractiveViewer(
-                        transformationController: _transformation,
-                        alignment: Alignment.topCenter,
-                        boundaryMargin: const EdgeInsets.all(80),
-                        constrained: false,
-                        minScale: 0.6,
-                        maxScale: 2.5,
-                        panEnabled: !_isAnnotating,
-                        scaleEnabled: !_isAnnotating,
-                        child: Container(
-                          width: paperWidth,
-                          margin: const EdgeInsets.symmetric(vertical: 16),
-                          padding: const EdgeInsets.fromLTRB(28, 36, 28, 48),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(4),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Color(0x26000000),
-                                blurRadius: 14,
-                                offset: Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Stack(
-                            fit: StackFit.passthrough,
-                            children: [
-                              NotationScoreView(
-                                key: ValueKey(
-                                  '${_selectedType.name}-${arrangement.transposeSemitones}',
-                                ),
-                                musicXml: MusicXmlTransposer.transpose(
-                                  arrangement.sourceXml,
-                                  arrangement.transposeSemitones,
-                                ),
-                                displayPreferences: displayPreferences,
-                              ),
-                              Positioned.fill(
-                                child: ScoreAnnotationCanvas(
-                                  key: _annotationCanvasKey,
-                                  annotations: arrangement.annotations,
-                                  tool: _annotationTool,
-                                  color: _annotationColor,
-                                  onChanged: _updateAnnotations,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                child: ScrollConfiguration(
+                  behavior: const MaterialScrollBehavior().copyWith(
+                    dragDevices: _isAnnotating
+                        ? {PointerDeviceKind.touch, PointerDeviceKind.trackpad}
+                        : PointerDeviceKind.values.toSet(),
+                  ),
+                  child: ColoredBox(
+                    color: Theme.of(context).colorScheme.surfaceContainerLow,
+                    child: ScrollableScoreView(
+                      key: ValueKey(_selectedType),
+                      musicXml: MusicXmlTransposer.transpose(
+                        arrangement.sourceXml,
+                        arrangement.transposeSemitones,
                       ),
-                    );
-                  },
+                      preferences: displayPreferences,
+                      annotations: _annotationController,
+                      tool: _annotationTool,
+                      color: _annotationColor,
+                      transformationController: _transformation,
+                    ),
+                  ),
                 ),
               ),
             ],

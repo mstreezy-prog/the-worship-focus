@@ -47,6 +47,7 @@ class ChordDiagram extends StatelessWidget {
                 const SizedBox(height: 4),
                 SizedBox(
                   height: height,
+                  width: double.infinity,
                   child: CustomPaint(
                     painter: _ChordDiagramPainter(
                       definition: definition,

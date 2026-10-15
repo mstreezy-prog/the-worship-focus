@@ -18,11 +18,17 @@ void main() {
     expect(find.text('The Worship Focus'), findsWidgets);
     expect(find.text('Library'), findsOneWidget);
     expect(find.text('Amazing Grace'), findsWidgets);
+    expect(find.text('Open Music Stand'), findsOneWidget);
+    expect(find.text('ChordPro editor'), findsNothing);
+    await tester.tap(find.text('Amazing Grace').first);
+    await tester.pump();
+    await tester.tap(find.widgetWithText(Tab, 'Editor'));
+    await tester.pumpAndSettle();
     expect(find.text('ChordPro editor'), findsOneWidget);
     expect(find.widgetWithText(Tab, 'Editor'), findsOneWidget);
     expect(find.widgetWithText(Tab, 'Preview'), findsOneWidget);
     expect(find.widgetWithText(Tab, 'MusicXML'), findsOneWidget);
-    expect(find.byTooltip('Live mode'), findsOneWidget);
+    expect(find.byTooltip('Music Stand'), findsOneWidget);
     expect(find.byTooltip('Import ChordPro'), findsOneWidget);
     expect(find.byTooltip('Library backup'), findsOneWidget);
     expect(find.byTooltip('Save ChordPro as'), findsOneWidget);
@@ -41,21 +47,37 @@ void main() {
 
     await tester.pumpWidget(const WorshipFocusStudioApp());
 
-    await tester.tap(find.byTooltip('Live mode'));
+    await tester.tap(find.text('Amazing Grace').first);
+    await tester.pump();
+    await tester.tap(find.byTooltip('Music Stand'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Live mode'), findsOneWidget);
-    expect(find.byTooltip('Decrease font size'), findsOneWidget);
-    expect(find.byTooltip('Increase font size'), findsOneWidget);
+    expect(find.text('Music Stand'), findsOneWidget);
+    expect(find.byTooltip('Pencil tools'), findsOneWidget);
+    expect(find.byTooltip('Pencil'), findsNothing);
+    await tester.tap(find.byTooltip('Pencil tools'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Pencil'), findsOneWidget);
+    await tester.tap(find.byTooltip('Pencil tools'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Pencil'), findsNothing);
     expect(find.byTooltip('Previous ChordPro page'), findsOneWidget);
     expect(find.byTooltip('Next ChordPro page'), findsOneWidget);
-    expect(find.text('One column'), findsOneWidget);
-    expect(find.byTooltip('Keep screen awake'), findsOneWidget);
     expect(find.byTooltip('Next song'), findsOneWidget);
-
-    await tester.tap(find.text('One column'));
+    await tester.tap(find.byTooltip('Reader settings'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Decrease font size'), findsOneWidget);
+    expect(find.byTooltip('Increase font size'), findsOneWidget);
+    await tester.tap(find.text('Two columns'));
     await tester.pump();
-    expect(find.text('Two columns'), findsOneWidget);
+    expect(
+      tester
+          .widget<SwitchListTile>(
+            find.widgetWithText(SwitchListTile, 'Two columns'),
+          )
+          .value,
+      isTrue,
+    );
   });
 
   testWidgets('shows ChordPro header notes on the first live page', (
@@ -122,6 +144,8 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(const WorshipFocusStudioApp());
+    await tester.tap(find.text('Amazing Grace').first);
+    await tester.pump();
     await tester.tap(find.widgetWithText(Tab, 'MusicXML'));
     await tester.pumpAndSettle();
 
@@ -139,6 +163,8 @@ void main() {
 
     await tester.pumpWidget(const WorshipFocusStudioApp());
 
+    await tester.tap(find.text('Amazing Grace').first);
+    await tester.pump();
     expect(find.byTooltip('Song tools'), findsOneWidget);
     expect(find.byTooltip('Save ChordPro as'), findsNothing);
   });
@@ -152,6 +178,8 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(const WorshipFocusStudioApp());
+    await tester.tap(find.text('Amazing Grace').first);
+    await tester.pump();
     await tester.tap(find.widgetWithText(Tab, 'MusicXML'));
     await tester.pumpAndSettle();
 

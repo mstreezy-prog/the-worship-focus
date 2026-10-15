@@ -13,6 +13,7 @@ import '../services/chordpro_metadata.dart';
 import '../services/music_xml_transposer.dart';
 import '../services/service_plan_repository.dart';
 import '../services/song_repository.dart';
+import '../services/recent_service_store.dart';
 
 enum LibrarySection { songs, servicePlans }
 
@@ -23,15 +24,32 @@ enum SongSort { title, artist }
 class LibraryController extends ChangeNotifier {
   LibraryController({
     SongRepository? repository,
+    RecentServiceStore? recentServiceStore,
     ServicePlanRepository? servicePlanRepository,
     this.autosaveDelay = const Duration(milliseconds: 600),
-  }) : _repository = repository ?? SongRepository(),
+  }) : _recentServiceStore = recentServiceStore ?? FileRecentServiceStore(),
+       _repository = repository ?? SongRepository(),
        _servicePlanRepository =
            servicePlanRepository ?? ServicePlanRepository() {
     _songs = _repository.getAll().toList();
     _servicePlans = _servicePlanRepository.getAll().toList();
     _selectedSong = _songs.firstOrNull;
     _selectedServicePlan = _servicePlans.firstOrNull;
+  }
+
+  final RecentServiceStore _recentServiceStore;
+  Future<void> _recentServiceWrites = Future.value();
+
+  void _rememberService() {
+    final id = _selectedServicePlan?.id;
+    if (id == null) return;
+    _recentServiceWrites = _recentServiceWrites.then((_) async {
+      try {
+        await _recentServiceStore.write(id);
+      } on Object {
+        // Service contents still use the library save status and retry flow.
+      }
+    });
   }
 
   final SongRepository _repository;
@@ -45,6 +63,7 @@ class LibraryController extends ChangeNotifier {
   LibrarySaveState _saveState = LibrarySaveState.loading;
   String? _saveError;
   Timer? _autosaveTimer;
+  bool _disposed = false;
   int _revision = 0;
   String _searchQuery = '';
   SongSort _songSort = SongSort.title;
@@ -103,7 +122,13 @@ class LibraryController extends ChangeNotifier {
     notifyListeners();
     try {
       final selectedId = _selectedSong?.id;
-      final selectedPlanId = _selectedServicePlan?.id;
+      String? recentId;
+      try {
+        recentId = await _recentServiceStore.read();
+      } on Object {
+        // A missing preference must not prevent loading the library.
+      }
+      final selectedPlanId = recentId ?? _selectedServicePlan?.id;
       final loaded = await _repository.load();
       final loadedPlans = await _servicePlanRepository.load();
       _songs
@@ -124,7 +149,43 @@ class LibraryController extends ChangeNotifier {
       _saveState = LibrarySaveState.error;
       _saveError = 'Library could not be loaded: $error';
     }
-    notifyListeners();
+    if (!_disposed) notifyListeners();
+  }
+
+  void updateChordProAnnotations(
+    String songId,
+    Map<String, List<ScoreAnnotationStroke>> annotations,
+  ) {
+    final index = _songs.indexWhere((song) => song.id == songId);
+    if (index < 0) return;
+    final updated = _songs[index].copyWith(chordProAnnotations: annotations);
+    _songs[index] = updated;
+    _repository.update(updated);
+    if (_selectedSong?.id == songId) _selectedSong = updated;
+    _scheduleAutosave();
+  }
+
+  void updateScoreAnnotations(
+    String songId,
+    MusicXmlArrangementType type,
+    List<ScoreAnnotationStroke> annotations,
+  ) {
+    final index = _songs.indexWhere((song) => song.id == songId);
+    if (index < 0) return;
+    final song = _songs[index];
+    final arrangement = song.arrangement(type);
+    if (arrangement == null) return;
+    final next = arrangement.copyWith(
+      annotations: List.unmodifiable(annotations),
+    );
+    final updated = switch (type) {
+      MusicXmlArrangementType.leadSheet => song.copyWith(leadSheet: next),
+      MusicXmlArrangementType.fullPiano => song.copyWith(fullPiano: next),
+    };
+    _songs[index] = updated;
+    _repository.update(updated);
+    if (_selectedSong?.id == songId) _selectedSong = updated;
+    _scheduleAutosave();
   }
 
   void selectSection(LibrarySection value) {
@@ -385,6 +446,7 @@ class LibraryController extends ChangeNotifier {
     _servicePlans.add(plan);
     _servicePlanRepository.add(plan);
     _selectedServicePlan = plan;
+    _rememberService();
     if (selectSection) _section = LibrarySection.servicePlans;
     _scheduleAutosave();
     return plan;
@@ -393,6 +455,7 @@ class LibraryController extends ChangeNotifier {
   void selectServicePlan(ServicePlan plan) {
     if (_selectedServicePlan?.id == plan.id) return;
     _selectedServicePlan = plan;
+    _rememberService();
     notifyListeners();
   }
 
@@ -590,6 +653,7 @@ class LibraryController extends ChangeNotifier {
   }
 
   Future<void> flushPendingSave() async {
+    await _recentServiceWrites;
     _autosaveTimer?.cancel();
     _autosaveTimer = null;
     if (_saveState == LibrarySaveState.unsaved ||
@@ -660,11 +724,12 @@ class LibraryController extends ChangeNotifier {
       _saveState = LibrarySaveState.error;
       _saveError = 'Changes could not be saved: $error';
     }
-    notifyListeners();
+    if (!_disposed) notifyListeners();
   }
 
   @override
   void dispose() {
+    _disposed = true;
     _autosaveTimer?.cancel();
     if (_saveState == LibrarySaveState.unsaved) {
       unawaited(_repository.persist());

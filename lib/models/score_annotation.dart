@@ -28,7 +28,9 @@ enum ScoreAnnotationColor {
   purple(0xFF6F42C1),
   blue(0xFF1565C0),
   red(0xFFC62828),
-  black(0xFF202124);
+  black(0xFF202124),
+  yellow(0xFFFFD43B),
+  green(0xFF34C759);
 
   const ScoreAnnotationColor(this.value);
 
@@ -41,6 +43,8 @@ enum ScoreAnnotationColor {
     ScoreAnnotationColor.blue => 'Blue',
     ScoreAnnotationColor.red => 'Red',
     ScoreAnnotationColor.black => 'Black',
+    ScoreAnnotationColor.yellow => 'Yellow',
+    ScoreAnnotationColor.green => 'Green',
   };
 }
 

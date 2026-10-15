@@ -258,7 +258,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
 
-      expect(find.text('Live mode'), findsOneWidget);
+      expect(find.text('Music Stand'), findsOneWidget);
       expect(find.text('Start in D; repeat the final chorus.'), findsOneWidget);
       expect(find.textContaining('D major'), findsOneWidget);
       expect(find.text('ChordPro'), findsOneWidget);
@@ -269,7 +269,7 @@ void main() {
 
       await tester.tap(find.text('ChordPro'));
       await tester.pump();
-      expect(find.byTooltip('Decrease font size'), findsOneWidget);
+      expect(find.byTooltip('Reader settings'), findsOneWidget);
 
       await tester.tap(find.text('Full Piano'));
       await tester.pump();

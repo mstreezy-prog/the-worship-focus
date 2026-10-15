@@ -25,7 +25,7 @@ class ChordLine extends StatelessWidget {
     );
 
     return LayoutBuilder(
-      builder: (context, _) {
+      builder: (context, constraints) {
         final text = line.lyrics;
         if (text.isEmpty) {
           if (line.chords.isEmpty) return SizedBox(height: fontSize);
@@ -65,22 +65,35 @@ class ChordLine extends StatelessWidget {
           nextChordLeft = left + painter.width + fontSize * 0.45;
         }
 
+        final lyricsPainter = TextPainter(
+          text: TextSpan(text: text, style: lyricStyle),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        final naturalWidth = math.max(lyricsPainter.width, nextChordLeft);
         return SizedBox(
           height: fontSize * 2.75,
-          child: Stack(
-            children: [
-              // chords
-              ...line.chords.map((c) {
-                return Positioned(
-                  left: chordPositions[c]!,
-                  top: 0,
-                  child: Text(c.chord, style: chordStyle),
-                );
-              }),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: math.max(naturalWidth, constraints.maxWidth),
+              height: fontSize * 2.75,
+              child: Stack(
+                children: [
+                  // chords
+                  ...line.chords.map((c) {
+                    return Positioned(
+                      left: chordPositions[c]!,
+                      top: 0,
+                      child: Text(c.chord, style: chordStyle),
+                    );
+                  }),
 
-              // lyrics
-              Positioned(bottom: 0, child: Text(text, style: lyricStyle)),
-            ],
+                  // lyrics
+                  Positioned(bottom: 0, child: Text(text, style: lyricStyle)),
+                ],
+              ),
+            ),
           ),
         );
       },

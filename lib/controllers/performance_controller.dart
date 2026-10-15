@@ -16,6 +16,15 @@ class PerformanceController extends ChangeNotifier {
   final KeepAwakeService _keepAwakeService;
   PerformancePreferences _preferences = const PerformancePreferences();
   bool _wakeLockActive = false;
+  final Map<String, int> _transpositions = {};
+
+  int transposeFor(String songId) => _transpositions[songId] ?? 0;
+
+  void transpose(String songId, int delta) {
+    _transpositions[songId] = (transposeFor(songId) + delta).clamp(-11, 11);
+    notifyListeners();
+  }
+
   Future<void> _writeQueue = Future<void>.value();
 
   PerformancePreferences get preferences => _preferences;

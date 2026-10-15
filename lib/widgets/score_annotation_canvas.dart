@@ -16,10 +16,12 @@ class ScoreAnnotationCanvas extends StatefulWidget {
     required this.tool,
     required this.color,
     required this.onChanged,
+    this.widthScale = 1,
     super.key,
   });
 
   final List<ScoreAnnotationStroke> annotations;
+  final double widthScale;
   final ScoreAnnotationTool tool;
   final ScoreAnnotationColor color;
   final ValueChanged<List<ScoreAnnotationStroke>> onChanged;
@@ -38,6 +40,7 @@ class ScoreAnnotationCanvasState extends State<ScoreAnnotationCanvas> {
   final List<ScoreAnnotationPoint> _activePoints = [];
   List<ScoreAnnotationStroke>? _eraseStart;
   bool _didErase = false;
+  int? _activePointer;
 
   bool get canUndo => _undoHistory.isNotEmpty;
   bool get canRedo => _redoHistory.isNotEmpty;
@@ -51,6 +54,13 @@ class ScoreAnnotationCanvasState extends State<ScoreAnnotationCanvas> {
   @override
   void didUpdateWidget(ScoreAnnotationCanvas oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.tool != oldWidget.tool) {
+      if (_eraseStart != null) _annotations = _eraseStart!;
+      _activePointer = null;
+      _activePoints.clear();
+      _eraseStart = null;
+      _didErase = false;
+    }
     if (!identical(widget.annotations, _annotations)) {
       _annotations = List.unmodifiable(widget.annotations);
       _undoHistory.clear();
@@ -110,6 +120,8 @@ class ScoreAnnotationCanvasState extends State<ScoreAnnotationCanvas> {
 
   void _onPointerDown(PointerDownEvent event) {
     if (!_canAnnotate(event) || widget.tool == ScoreAnnotationTool.none) return;
+    if (_activePointer != null) return;
+    _activePointer = event.pointer;
     final point = _pointFor(event);
     if (point == null) return;
     if (widget.tool == ScoreAnnotationTool.eraser) {
@@ -118,12 +130,15 @@ class ScoreAnnotationCanvasState extends State<ScoreAnnotationCanvas> {
       _eraseAt(point);
       return;
     }
-    _activePoints
-      ..clear()
-      ..add(point);
+    setState(() {
+      _activePoints
+        ..clear()
+        ..add(point);
+    });
   }
 
   void _onPointerMove(PointerMoveEvent event) {
+    if (event.pointer != _activePointer) return;
     if (!_canAnnotate(event) || widget.tool == ScoreAnnotationTool.none) return;
     final point = _pointFor(event);
     if (point == null) return;
@@ -135,7 +150,8 @@ class ScoreAnnotationCanvasState extends State<ScoreAnnotationCanvas> {
   }
 
   void _onPointerUp(PointerUpEvent event) {
-    if (!_canAnnotate(event)) return;
+    if (!_canAnnotate(event) || event.pointer != _activePointer) return;
+    _activePointer = null;
     if (widget.tool == ScoreAnnotationTool.eraser) {
       final start = _eraseStart;
       _eraseStart = null;
@@ -143,6 +159,7 @@ class ScoreAnnotationCanvasState extends State<ScoreAnnotationCanvas> {
         _undoHistory.add(start);
         if (_undoHistory.length > _historyLimit) _undoHistory.removeAt(0);
         _redoHistory.clear();
+        widget.onChanged(_annotations);
       }
       return;
     }
@@ -154,13 +171,18 @@ class ScoreAnnotationCanvasState extends State<ScoreAnnotationCanvas> {
       points: List.unmodifiable(_activePoints),
       color: widget.color,
       style: style,
-      width: style == ScoreAnnotationStyle.highlighter ? 16 : 4,
+      width:
+          (style == ScoreAnnotationStyle.highlighter ? 16 : 4) *
+          widget.widthScale,
     );
     _activePoints.clear();
     _recordChange([..._annotations, stroke]);
   }
 
   void _onPointerCancel(PointerCancelEvent event) {
+    if (event.pointer != _activePointer) return;
+    _activePointer = null;
+    if (_eraseStart != null) _annotations = _eraseStart!;
     _activePoints.clear();
     _eraseStart = null;
     _didErase = false;
@@ -174,15 +196,29 @@ class ScoreAnnotationCanvasState extends State<ScoreAnnotationCanvas> {
     final target = point.toOffset(size);
     final remaining = _annotations
         .where((stroke) {
-          return !stroke.points.any(
-            (candidate) =>
-                (candidate.toOffset(size) - target).distance <= _eraserRadius,
-          );
+          for (var index = 0; index < stroke.points.length; index++) {
+            final end = stroke.points[index].toOffset(size);
+            final start = index == 0
+                ? end
+                : stroke.points[index - 1].toOffset(size);
+            final segment = end - start;
+            final fraction = segment.distanceSquared == 0
+                ? 0.0
+                : (((target - start).dx * segment.dx +
+                              (target - start).dy * segment.dy) /
+                          segment.distanceSquared)
+                      .clamp(0.0, 1.0);
+            if ((start + segment * fraction - target).distance <=
+                _eraserRadius) {
+              return false;
+            }
+          }
+          return true;
         })
         .toList(growable: false);
     if (remaining.length == _annotations.length) return;
     _didErase = true;
-    _setAnnotations(remaining);
+    setState(() => _annotations = List.unmodifiable(remaining));
   }
 
   @override
@@ -190,8 +226,9 @@ class ScoreAnnotationCanvasState extends State<ScoreAnnotationCanvas> {
     final painter = CustomPaint(
       painter: _ScoreAnnotationPainter(
         annotations: _annotations,
-        activePoints: _activePoints,
+        activePoints: List.of(_activePoints),
         activeColor: widget.color,
+        widthScale: widget.widthScale,
         activeStyle: widget.tool == ScoreAnnotationTool.highlighter
             ? ScoreAnnotationStyle.highlighter
             : ScoreAnnotationStyle.pen,
@@ -220,12 +257,14 @@ class _ScoreAnnotationPainter extends CustomPainter {
     required this.activePoints,
     required this.activeColor,
     required this.activeStyle,
+    required this.widthScale,
   });
 
   final List<ScoreAnnotationStroke> annotations;
   final List<ScoreAnnotationPoint> activePoints;
   final ScoreAnnotationColor activeColor;
   final ScoreAnnotationStyle activeStyle;
+  final double widthScale;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -246,7 +285,7 @@ class _ScoreAnnotationPainter extends CustomPainter {
         activePoints,
         activeColor,
         activeStyle,
-        activeStyle == ScoreAnnotationStyle.highlighter ? 16 : 4,
+        (activeStyle == ScoreAnnotationStyle.highlighter ? 16 : 4) * widthScale,
       );
     }
   }
@@ -289,6 +328,7 @@ class _ScoreAnnotationPainter extends CustomPainter {
     return oldDelegate.annotations != annotations ||
         oldDelegate.activePoints != activePoints ||
         oldDelegate.activeColor != activeColor ||
-        oldDelegate.activeStyle != activeStyle;
+        oldDelegate.activeStyle != activeStyle ||
+        oldDelegate.widthScale != widthScale;
   }
 }

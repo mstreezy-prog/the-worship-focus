@@ -1,9 +1,11 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../models/song.dart';
+import '../controllers/reader_annotation_controller.dart';
+import '../models/score_annotation.dart';
+import 'score_annotation_canvas.dart';
 import '../services/chordpro_document.dart';
+import '../services/reader_pagination.dart';
 import '../services/chordpro_performance_info.dart';
 import 'chord_diagram.dart';
 import 'chord_line.dart';
@@ -12,20 +14,26 @@ import 'chord_line.dart';
 class ChordProPerformanceView extends StatelessWidget {
   const ChordProPerformanceView({
     required this.song,
+    this.annotations,
+    this.annotationTool = ScoreAnnotationTool.none,
+    this.annotationColor = ScoreAnnotationColor.purple,
+    this.widthScale = 1,
     required this.fontSize,
     required this.twoColumns,
-    required this.pageController,
-    required this.onPageChanged,
-    required this.onPageCountChanged,
+    required this.pageIndex,
+    this.layoutHeight,
     super.key,
   });
 
   final Song song;
+  final ReaderAnnotationController? annotations;
+  final ScoreAnnotationTool annotationTool;
+  final ScoreAnnotationColor annotationColor;
+  final double widthScale;
   final double fontSize;
   final bool twoColumns;
-  final PageController pageController;
-  final ValueChanged<int> onPageChanged;
-  final ValueChanged<int> onPageCountChanged;
+  final int pageIndex;
+  final double? layoutHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -34,122 +42,77 @@ class ChordProPerformanceView extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final pages = _pagesFor(
+        final anchors = ReaderAnnotationController.anchors(document.blocks);
+        final pages = ReaderPagination.paginate(
+          fontSize: fontSize,
+          twoColumns: twoColumns && constraints.maxWidth >= 700,
           blocks: document.blocks,
           hasInfo: true,
-          maxHeight: constraints.maxHeight,
+          maxHeight: layoutHeight ?? constraints.maxHeight,
         );
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (context.mounted) onPageCountChanged(pages.length);
-        });
+        final visiblePage = pageIndex.clamp(0, pages.length - 1);
+        final page = pages[visiblePage];
 
-        return PageView.builder(
-          key: const ValueKey('chordpro-page-reader'),
-          controller: pageController,
-          scrollDirection: Axis.vertical,
-          itemCount: pages.length,
-          onPageChanged: onPageChanged,
-          itemBuilder: (context, pageIndex) {
-            final page = pages[pageIndex];
-            return Padding(
-              padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (page.showInformation) ...[
-                    _SongInformation(song: song, info: info),
-                    const SizedBox(height: 16),
-                  ],
-                  Expanded(
-                    child: _ChordProPage(
-                      columns: page.columns,
-                      fontSize: fontSize,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: Text(
-                      'Page ${pageIndex + 1} of ${pages.length}',
-                      key: const ValueKey('chordpro-page-indicator'),
-                      style: Theme.of(context).textTheme.labelMedium,
-                    ),
-                  ),
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (page.showInformation) ...[
+                  _SongInformation(song: song, info: info),
+                  const SizedBox(height: 16),
                 ],
-              ),
-            );
-          },
+                _ChordProPage(
+                  columns: page.columns,
+                  anchors: anchors,
+                  annotations: annotations,
+                  tool: annotationTool,
+                  color: annotationColor,
+                  widthScale: widthScale,
+                  fontSize: fontSize,
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    'Page ${visiblePage + 1} of ${pages.length}',
+                    key: const ValueKey('chordpro-page-indicator'),
+                    style: Theme.of(context).textTheme.labelMedium,
+                  ),
+                ),
+              ],
+            ),
+          ),
         );
       },
     );
   }
-
-  List<_ChordProPageData> _pagesFor({
-    required List<ChordProContentBlock> blocks,
-    required bool hasInfo,
-    required double maxHeight,
-  }) {
-    final lineHeight = fontSize * 2.75 + 4;
-    final usableHeight = math.max(160.0, maxHeight - 56);
-    final columnsPerPage = twoColumns ? 2 : 1;
-    final linesPerColumn = math.max(2, (usableHeight / lineHeight).floor());
-    final headerLines = hasInfo ? math.max(2, (150 / lineHeight).ceil()) : 0;
-    final firstPageCapacity = math.max(2, linesPerColumn - headerLines);
-    final pages = <_ChordProPageData>[];
-    var start = 0;
-    var capacity = firstPageCapacity;
-
-    do {
-      final columns = <List<ChordProContentBlock>>[];
-      for (var column = 0; column < columnsPerPage; column++) {
-        final pageColumn = <ChordProContentBlock>[];
-        var used = 0;
-        while (start < blocks.length) {
-          final block = blocks[start];
-          final cost = _blockCost(block, lineHeight);
-          if (pageColumn.isNotEmpty && used + cost > capacity) break;
-          pageColumn.add(block);
-          used += cost;
-          start++;
-        }
-        columns.add(pageColumn);
-      }
-      pages.add(
-        _ChordProPageData(columns: columns, showInformation: pages.isEmpty),
-      );
-      capacity = linesPerColumn;
-    } while (start < blocks.length);
-
-    return pages;
-  }
-
-  int _blockCost(ChordProContentBlock block, double lineHeight) =>
-      switch (block) {
-        ChordProTextBlock() => 1,
-        ChordProDiagramBlock() => math.max(4, (210 / lineHeight).ceil()),
-      };
-}
-
-class _ChordProPageData {
-  const _ChordProPageData({
-    required this.columns,
-    required this.showInformation,
-  });
-
-  final List<List<ChordProContentBlock>> columns;
-  final bool showInformation;
 }
 
 class _ChordProPage extends StatelessWidget {
-  const _ChordProPage({required this.columns, required this.fontSize});
+  const _ChordProPage({
+    required this.columns,
+    required this.fontSize,
+    required this.anchors,
+    required this.annotations,
+    required this.tool,
+    required this.color,
+    required this.widthScale,
+  });
 
   final List<List<ChordProContentBlock>> columns;
   final double fontSize;
+  final Map<ChordProContentBlock, String> anchors;
+  final ReaderAnnotationController? annotations;
+  final ScoreAnnotationTool tool;
+  final ScoreAnnotationColor color;
+  final double widthScale;
 
   @override
   Widget build(BuildContext context) {
     if (columns.every((column) => column.isEmpty)) {
-      return const SizedBox.expand();
+      return const SizedBox.shrink();
     }
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -157,7 +120,15 @@ class _ChordProPage extends StatelessWidget {
         for (var index = 0; index < columns.length; index++) ...[
           if (index > 0) SizedBox(width: fontSize * 1.4),
           Expanded(
-            child: _ChordProColumn(blocks: columns[index], fontSize: fontSize),
+            child: _ChordProColumn(
+              blocks: columns[index],
+              fontSize: fontSize,
+              anchors: anchors,
+              annotations: annotations,
+              tool: tool,
+              color: color,
+              widthScale: widthScale,
+            ),
           ),
         ],
       ],
@@ -166,29 +137,59 @@ class _ChordProPage extends StatelessWidget {
 }
 
 class _ChordProColumn extends StatelessWidget {
-  const _ChordProColumn({required this.blocks, required this.fontSize});
+  const _ChordProColumn({
+    required this.blocks,
+    required this.fontSize,
+    required this.anchors,
+    required this.annotations,
+    required this.tool,
+    required this.color,
+    required this.widthScale,
+  });
 
   final List<ChordProContentBlock> blocks;
   final double fontSize;
+  final Map<ChordProContentBlock, String> anchors;
+  final ReaderAnnotationController? annotations;
+  final ScoreAnnotationTool tool;
+  final ScoreAnnotationColor color;
+  final double widthScale;
 
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       for (final block in blocks)
-        switch (block) {
-          ChordProTextBlock(:final line) => ChordLine(
-            line: line,
-            fontSize: fontSize,
-          ),
-          ChordProDiagramBlock(:final definition) => Padding(
-            padding: EdgeInsets.symmetric(vertical: fontSize * 0.35),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: ChordDiagram(definition: definition, compact: true),
-            ),
-          ),
-        },
+        Stack(
+          children: [
+            switch (block) {
+              ChordProTextBlock(:final line) => ChordLine(
+                line: line,
+                fontSize: fontSize,
+              ),
+              ChordProDiagramBlock(:final definition) => Padding(
+                padding: EdgeInsets.symmetric(vertical: fontSize * 0.35),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: ChordDiagram(definition: definition, compact: true),
+                ),
+              ),
+            },
+            if (annotations != null)
+              Positioned.fill(
+                child: ScoreAnnotationCanvas(
+                  key: ValueKey(anchors[block]),
+                  annotations:
+                      annotations!.annotations[anchors[block]] ?? const [],
+                  tool: tool,
+                  color: color,
+                  widthScale: widthScale,
+                  onChanged: (strokes) =>
+                      annotations!.update(anchors[block]!, strokes),
+                ),
+              ),
+          ],
+        ),
     ],
   );
 }

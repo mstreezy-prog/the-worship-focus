@@ -1,4 +1,5 @@
 import 'music_xml_arrangement.dart';
+import 'score_annotation.dart';
 
 class Song {
   final String id;
@@ -14,6 +15,9 @@ class Song {
   final String? key;
   final int? tempo;
 
+  /// Markings anchored to ChordPro source blocks, independent of pagination.
+  final Map<String, List<ScoreAnnotationStroke>> chordProAnnotations;
+
   Song({
     required this.id,
     required this.title,
@@ -23,6 +27,7 @@ class Song {
     this.fullPiano,
     this.key,
     this.tempo,
+    this.chordProAnnotations = const {},
   });
 
   Song copyWith({
@@ -39,8 +44,10 @@ class Song {
     bool clearKey = false,
     int? tempo,
     bool clearTempo = false,
+    Map<String, List<ScoreAnnotationStroke>>? chordProAnnotations,
   }) {
     return Song(
+      chordProAnnotations: chordProAnnotations ?? this.chordProAnnotations,
       id: id ?? this.id,
       title: title ?? this.title,
       artist: clearArtist ? null : artist ?? this.artist,
@@ -62,6 +69,10 @@ class Song {
       'fullPiano': fullPiano?.toJson(),
       'key': key,
       'tempo': tempo,
+      'chordProAnnotations': {
+        for (final entry in chordProAnnotations.entries)
+          entry.key: entry.value.map((stroke) => stroke.toJson()).toList(),
+      },
     };
   }
 
@@ -75,6 +86,17 @@ class Song {
 
     final legacyMusicXml = json['musicXml'];
     return Song(
+      chordProAnnotations: {
+        for (final entry
+            in (json['chordProAnnotations'] as Map<String, Object?>? ?? {})
+                .entries)
+          entry.key: [
+            for (final stroke in entry.value as List)
+              ScoreAnnotationStroke.fromJson(
+                Map<String, Object?>.from(stroke as Map),
+              ),
+          ],
+      },
       id: id,
       title: title,
       chordPro: chordPro,
