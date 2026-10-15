@@ -1,8 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import 'screens/home_screen.dart';
 
 void main() {
+  LicenseRegistry.addLicense(() async* {
+    yield LicenseEntryWithLineBreaks([
+      'CMG Sans',
+    ], await rootBundle.loadString('assets/licenses/CMG-Sans-OFL-1.1.txt'));
+  });
   runApp(const WorshipFocusStudioApp());
 }
 

@@ -14,6 +14,7 @@ import '../services/library_backup_service.dart';
 import '../services/music_xml_document_service.dart';
 import '../services/service_packet_pdf.dart';
 import '../widgets/chordpro_editor.dart';
+import '../widgets/app_information_dialog.dart';
 import '../widgets/library_sidebar.dart';
 import '../widgets/music_xml_workspace.dart';
 import '../widgets/preview_panel.dart';
@@ -590,7 +591,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     ),
                   ],
                 ),
-                actions: _buildAppActions(wide),
+                actions: [
+                  ..._buildAppActions(wide),
+                  IconButton(
+                    tooltip: 'About, privacy and support',
+                    icon: const Icon(Icons.info_outline),
+                    onPressed: () => showDialog<void>(
+                      context: context,
+                      builder: (_) => const AppInformationDialog(),
+                    ),
+                  ),
+                ],
               ),
               body: Column(
                 children: [
