@@ -94,7 +94,7 @@ void main() {
 {tempo: 84}
 {time: 6/8}
 {order: Intro V1 C V2 C}
-{comment: Start quietly.}
+{note: Start quietly.}
 [G]Test lyrics''',
             ),
           ],

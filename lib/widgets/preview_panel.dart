@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../models/song.dart';
 import '../services/chordpro_document.dart';
+import '../services/chordpro_performance_info.dart';
 import 'chord_diagram.dart';
 import 'chord_line.dart';
+import 'chordpro_comment.dart';
 
 class PreviewPanel extends StatelessWidget {
   const PreviewPanel({
@@ -34,6 +36,12 @@ class PreviewPanel extends StatelessWidget {
                 : Theme.of(context).textTheme.titleMedium,
           ),
         ),
+        if (ChordProPerformanceInfo.fromSong(song).capoSummary
+            case final summary?)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Text(summary),
+          ),
         Expanded(
           child: ListView(
             controller: scrollController,
@@ -41,6 +49,10 @@ class PreviewPanel extends StatelessWidget {
             children: [
               for (final block in document.blocks)
                 switch (block) {
+                  ChordProCommentBlock() => ChordProComment(
+                    comment: block,
+                    fontSize: fontSize,
+                  ),
                   ChordProTextBlock(:final line) => ChordLine(
                     line: line,
                     fontSize: fontSize,

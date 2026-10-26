@@ -1,3 +1,5 @@
+import 'chordpro_directive.dart';
+
 class ChordTransposer {
   static const _sharpNotes = <String>[
     'C',
@@ -37,27 +39,33 @@ class ChordTransposer {
       return source;
     }
 
-    return source.replaceAllMapped(_chordPattern, (match) {
-      final root = match.group(1)!;
-      final suffix = match.group(2)!;
-      final transposedSuffix = suffix.startsWith('/')
-          ? '/${transposeChord(suffix.substring(1), semitones)}'
-          : suffix;
-      return '${_transposeNote(root, semitones)}$transposedSuffix';
-    });
+    return source
+        .split('\n')
+        .map((line) {
+          if (ChordProDirective.parse(line) != null ||
+              line.trimLeft().startsWith('#')) {
+            return line;
+          }
+          return line.replaceAllMapped(
+            _chordPattern,
+            (match) => transposeChord('${match[1]}${match[2]}', semitones),
+          );
+        })
+        .join('\n');
   }
 
   static String transposeChord(String chord, int semitones) {
-    final slashIndex = chord.indexOf('/');
-    final primary = slashIndex == -1 ? chord : chord.substring(0, slashIndex);
-    final bass = slashIndex == -1 ? null : chord.substring(slashIndex + 1);
+    if (semitones % 12 == 0) return chord;
+    final slashIndex = chord.lastIndexOf('/');
+    // A slash is an inversion only when followed by a note, not a quality (6/9).
+    final hasBass =
+        slashIndex != -1 &&
+        RegExp(r'^[A-G](?:#|b)?$').hasMatch(chord.substring(slashIndex + 1));
+    final primary = hasBass ? chord.substring(0, slashIndex) : chord;
+    final bass = hasBass ? chord.substring(slashIndex + 1) : null;
     final match = _rootPattern.firstMatch(primary);
-    if (match == null) {
-      return chord;
-    }
-
-    final transposed =
-        '${_transposeNote(match.group(1)!, semitones)}${match.group(2)!}';
+    if (match == null) return chord;
+    final transposed = '${_transposeNote(match[1]!, semitones)}${match[2]!}';
     return bass == null
         ? transposed
         : '$transposed/${_transposeNote(bass, semitones)}';

@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+
 import 'chordpro_document.dart';
 
 class ReaderPagination {
@@ -27,7 +28,24 @@ class ReaderPagination {
         while (start < blocks.length) {
           final block = blocks[start];
           final cost = _blockCost(block, lineHeight);
-          if (pageColumn.isNotEmpty && used + cost > capacity) break;
+          // Reserve space for a section's first music line as well as its label.
+          // An empty column must still accept oversized content to make progress.
+          var requiredCost = cost;
+          if (block is ChordProCommentBlock) {
+            var next = start + 1;
+            while (next < blocks.length) {
+              final following = blocks[next];
+              requiredCost += _blockCost(following, lineHeight);
+              next++;
+              if (following is ChordProTextBlock &&
+                  following.line.lyrics.trim().isEmpty &&
+                  following.line.chords.isEmpty) {
+                continue;
+              }
+              if (following is! ChordProCommentBlock) break;
+            }
+          }
+          if (pageColumn.isNotEmpty && used + requiredCost > capacity) break;
           pageColumn.add(block);
           used += cost;
           start++;
@@ -43,6 +61,7 @@ class ReaderPagination {
 
   static int _blockCost(ChordProContentBlock block, double lineHeight) =>
       switch (block) {
+        ChordProCommentBlock() => 1,
         ChordProTextBlock() => 1,
         ChordProDiagramBlock() => math.max(4, (210 / lineHeight).ceil()),
       };

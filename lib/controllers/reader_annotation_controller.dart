@@ -62,6 +62,7 @@ class ReaderAnnotationController extends ChangeNotifier {
       for (final block in blocks)
         block: (() {
           final text = switch (block) {
+            ChordProCommentBlock(:final text) => 'comment:$text',
             ChordProTextBlock(:final line) => 'line:${line.lyrics}',
             ChordProDiagramBlock(:final definition) =>
               'shape:${definition.name}:${definition.frets}',

@@ -13,7 +13,7 @@ void main() {
 {tempo: 84}
 {time: 6/8}
 {order: Intro V1 C V2 C}
-{comment: Build through the chorus.}
+{note: Build through the chorus.}
 [G]Test lyrics''',
       ),
     );

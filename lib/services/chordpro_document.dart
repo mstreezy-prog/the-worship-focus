@@ -1,5 +1,6 @@
 import 'chord_layout_engine.dart';
 import 'chordpro_parser.dart';
+import 'chordpro_directive.dart';
 
 /// A rendered piece of a ChordPro chart, in source order.
 sealed class ChordProContentBlock {
@@ -11,6 +12,19 @@ class ChordProTextBlock extends ChordProContentBlock {
   const ChordProTextBlock(this.line);
 
   final ChordLayoutLine line;
+}
+
+enum ChordProCommentStyle { standard, italic, boxed }
+
+/// A section label or playing instruction, kept at its position in the chart.
+class ChordProCommentBlock extends ChordProContentBlock {
+  const ChordProCommentBlock(
+    this.text, {
+    this.style = ChordProCommentStyle.standard,
+  });
+
+  final String text;
+  final ChordProCommentStyle style;
 }
 
 /// A chord-grid directive that should be shown at this point in a chart.
@@ -41,9 +55,9 @@ class ChordDiagramDefinition {
 
 /// Parses the subset of ChordPro that affects the reader's document layout.
 ///
-/// Definitions are retained for later `{chord: Name}` directives, while all
-/// other directives remain non-rendering so existing ChordPro charts keep their
-/// current appearance.
+/// Comments remain in source order alongside lyrics and chord diagrams.
+/// Definitions are retained for later `{chord: Name}` directives; metadata and
+/// unsupported directives do not produce content blocks.
 class ChordProDocument {
   const ChordProDocument({required this.blocks});
 
@@ -53,8 +67,13 @@ class ChordProDocument {
     final definitions = <String, ChordDiagramDefinition>{};
     final blocks = <ChordProContentBlock>[];
 
+    List<ChordProContentBlock>? lastChorus;
+    var lastChorusLabel = 'Chorus';
+    int? chorusStart;
+    var chorusLabel = 'Chorus';
+
     for (final sourceLine in source.split('\n')) {
-      final directive = _directiveFor(sourceLine);
+      final directive = ChordProDirective.parse(sourceLine);
       if (directive == null) {
         final parsed = ChordProParser.parse(sourceLine);
         blocks.addAll(
@@ -68,6 +87,63 @@ class ChordProDocument {
       }
 
       switch (directive.name) {
+        case 'start_of_verse':
+        case 'sov':
+        case 'start_of_bridge':
+        case 'sob':
+          blocks.add(
+            ChordProCommentBlock(
+              directive.sectionLabel(
+                directive.name == 'sov' || directive.name == 'start_of_verse'
+                    ? 'Verse'
+                    : 'Bridge',
+              ),
+            ),
+          );
+          break;
+        case 'start_of_chorus':
+        case 'soc':
+          chorusLabel = directive.sectionLabel('Chorus');
+          blocks.add(ChordProCommentBlock(chorusLabel));
+          chorusStart = blocks.length;
+          break;
+        case 'end_of_chorus':
+        case 'eoc':
+          if (chorusStart != null) {
+            lastChorus = List.of(blocks.sublist(chorusStart));
+            lastChorusLabel = chorusLabel;
+            chorusStart = null;
+          }
+          break;
+        case 'chorus':
+          blocks.add(
+            ChordProCommentBlock(directive.sectionLabel(lastChorusLabel)),
+          );
+          if (lastChorus != null) {
+            // Every occurrence needs distinct block identities for annotations.
+            blocks.addAll(lastChorus.map(_copyBlock));
+          }
+          break;
+        case 'comment':
+        case 'c':
+        case 'highlight':
+        case 'comment_italic':
+        case 'ci':
+        case 'comment_box':
+        case 'cb':
+          if (directive.arguments.isNotEmpty) {
+            blocks.add(
+              ChordProCommentBlock(
+                directive.arguments,
+                style: switch (directive.name) {
+                  'comment_italic' || 'ci' => ChordProCommentStyle.italic,
+                  'comment_box' || 'cb' => ChordProCommentStyle.boxed,
+                  _ => ChordProCommentStyle.standard,
+                },
+              ),
+            );
+          }
+          break;
         case 'define':
           final name = _firstArgument(directive.arguments);
           if (_diagramDisabled(directive.arguments)) {
@@ -99,16 +175,17 @@ class ChordProDocument {
     return ChordProDocument(blocks: blocks);
   }
 
-  static _Directive? _directiveFor(String sourceLine) {
-    final match = RegExp(
-      r'^\s*\{\s*([A-Za-z_-]+)\s*:\s*(.*?)\s*\}\s*$',
-    ).firstMatch(sourceLine);
-    if (match == null) return null;
-    return _Directive(
-      name: match.group(1)!.toLowerCase(),
-      arguments: match.group(2)!.trim(),
-    );
-  }
+  static ChordProContentBlock _copyBlock(ChordProContentBlock block) =>
+      switch (block) {
+        ChordProTextBlock(:final line) => ChordProTextBlock(line),
+        ChordProCommentBlock(:final text, :final style) => ChordProCommentBlock(
+          text,
+          style: style,
+        ),
+        ChordProDiagramBlock(:final definition) => ChordProDiagramBlock(
+          definition,
+        ),
+      };
 
   static ChordDiagramDefinition? _definitionFromArguments(String arguments) {
     final tokens = _tokens(arguments);
@@ -195,11 +272,4 @@ class ChordProDocument {
     if (value.toLowerCase() == 'x' || value.toLowerCase() == 'n') return -1;
     return int.tryParse(value);
   }
-}
-
-class _Directive {
-  const _Directive({required this.name, required this.arguments});
-
-  final String name;
-  final String arguments;
 }

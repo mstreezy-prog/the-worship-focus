@@ -1,9 +1,10 @@
 import 'dart:io';
+
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
 
-import 'chordpro_parser.dart';
+import 'chordpro_pdf_content.dart';
 
 class PdfExporter {
   static Future<File> exportSong({
@@ -11,8 +12,6 @@ class PdfExporter {
     required String chordPro,
   }) async {
     final pdf = pw.Document();
-
-    final lines = ChordProParser.parse(chordPro);
 
     pdf.addPage(
       pw.Page(
@@ -30,25 +29,7 @@ class PdfExporter {
               ),
               pw.SizedBox(height: 20),
 
-              ...lines.map((line) {
-                return pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Text(
-                      line.chords.map((chord) => chord.chord).join(' '),
-                      style: pw.TextStyle(
-                        font: pw.Font.courier(),
-                        fontWeight: pw.FontWeight.bold,
-                      ),
-                    ),
-                    pw.Text(
-                      line.lyrics,
-                      style: pw.TextStyle(font: pw.Font.courier()),
-                    ),
-                    pw.SizedBox(height: 10),
-                  ],
-                );
-              }),
+              ...chordProPdfContent(chordPro),
             ],
           );
         },

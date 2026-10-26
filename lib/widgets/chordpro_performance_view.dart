@@ -9,6 +9,7 @@ import '../services/reader_pagination.dart';
 import '../services/chordpro_performance_info.dart';
 import 'chord_diagram.dart';
 import 'chord_line.dart';
+import 'chordpro_comment.dart';
 
 /// A paged, stage-friendly ChordPro reader.
 class ChordProPerformanceView extends StatelessWidget {
@@ -163,6 +164,10 @@ class _ChordProColumn extends StatelessWidget {
         Stack(
           children: [
             switch (block) {
+              ChordProCommentBlock() => ChordProComment(
+                comment: block,
+                fontSize: fontSize,
+              ),
               ChordProTextBlock(:final line) => ChordLine(
                 line: line,
                 fontSize: fontSize,
@@ -203,7 +208,11 @@ class _SongInformation extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final details = <Widget>[
-      if (info.key case final key?) _Detail(label: 'Key', value: key),
+      if (info.key case final key?)
+        _Detail(label: info.capo == null ? 'Key' : 'Key (shapes)', value: key),
+      if (info.capo case final capo?) _Detail(label: 'Capo', value: '$capo'),
+      if (info.soundingKey case final key?)
+        _Detail(label: 'Sounding key', value: key),
       if (info.tempo case final tempo?) _Detail(label: 'Tempo', value: tempo),
       if (info.timeSignature case final time?)
         _Detail(label: 'Time', value: time),

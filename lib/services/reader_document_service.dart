@@ -1,5 +1,6 @@
 import '../models/song.dart';
 import 'chord_transposer.dart';
+import 'chordpro_directive.dart';
 
 /// Session-only transformations never change the saved chart.
 class ReaderDocumentService {
@@ -8,15 +9,15 @@ class ReaderDocumentService {
     final source = ChordTransposer.transposeChordPro(song.chordPro, semitones)
         .split('\n')
         .where(
-          (line) => !RegExp(
-            r'^\s*\{\s*(define|chord)\s*:',
-            caseSensitive: false,
-          ).hasMatch(line),
+          (line) => !const {
+            'define',
+            'chord',
+          }.contains(ChordProDirective.parse(line)?.name),
         )
         .map(
           (line) => line.replaceFirstMapped(
             RegExp(
-              r'^(\s*\{\s*(?:key|k)\s*:\s*)([^}]+)(\}.*)$',
+              r'^(\s*\{\s*(?:key|k)(?:\s*:\s*|\s+))([^}]+)(\}.*)$',
               caseSensitive: false,
             ),
             (match) =>
