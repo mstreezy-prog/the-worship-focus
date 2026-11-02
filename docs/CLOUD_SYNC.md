@@ -1,22 +1,27 @@
 # Service-plan cloud sync · first integration
 
-This branch contains a Supabase-backed service-plan connection. It is disabled unless the app is built with the public project URL and publishable key. Administrative/service-role keys must never be included in an app build.
+This branch is configured for the owner's Free Supabase development project, `pmmxucapanhsnuyoqxde`, in `us-east-2`. Only its public URL and publishable key are included. Build-time `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` values can override the defaults for another environment. Administrative/service-role keys must never be included in an app build.
 
-The matching website repository owns `supabase/migrations/202610300001_service_sync.sql`, the JavaScript sync client, and the shared protocol. Run that migration on the selected **Free development project** before enabling clients. The hosted website keeps its existing owner-only access.
+The matching private website owns the migration files, JavaScript sync client, and shared protocol. Its church membership and revision-guarded RPC schema is applied; the security advisor reports no issues. The hosted website retains owner-only access.
 
-## Enable cloud sync
+## Start testing
 
-1. Select or create a Free development project in the owner's connected Supabase account; do not enable paid services implicitly.
-2. Apply the migration. Provision the development Worship Focus auth account through Supabase's normal user setup. The Supabase dashboard login and the app's Worship Focus user login are separate identities.
-3. Set the website's `dist/cloud-config.js` to its public `url` and `publishableKey` and redeploy the private Site.
-4. On the Mac, run dependency resolution and the Flutter checks, then build with:
+1. In the Supabase project's **Authentication → Users → Add user → Create new user**, create a Worship Focus test login using your email and a password you choose; mark this user's email confirmed. Your Supabase dashboard account and app login are separate. Do not share passwords in chat.
+2. Open the private website, choose **Cloud sync settings**, sign in, create a church workspace, and connect the browser. Decide whether to include existing browser plans on the first connection.
+3. On the Mac, in the existing app checkout, run:
 
    ```sh
-   flutter run --dart-define=SUPABASE_URL=https://PROJECT.supabase.co --dart-define=SUPABASE_PUBLISHABLE_KEY=PUBLIC_KEY
+   git switch ipad-foundation
+   git pull --ff-only origin ipad-foundation
+   flutter pub get
+   flutter analyze
+   flutter test
+   flutter run
    ```
 
-5. In Cloud Sync, sign in to the same Worship Focus account on the website and iPad. Create one church workspace, then connect each device. Choose whether to copy existing local plans on its first connection. The original local plans remain available in Device-only mode.
-6. Verify an actual website → iPad → website round trip before treating sync as active. Test changing title/date/order/key/notes, working offline, reconnecting, concurrent edits, and signing out.
+   `flutter pub get` resolves the pinned Supabase dependency and updates `pubspec.lock`. Full Flutter checks/build remain unverified in the authoring environment. Stop and share errors if checks fail. No project keys need to be copied.
+4. In the iPad's **Cloud sync**, sign in with the same Worship Focus login, select the same church, and connect. Choose whether to include device-only plans on the first connection.
+5. Verify an actual website → iPad → website round trip. Test title/date/order/key/notes, an offline edit and reconnect, concurrent edits, and signing out before relying on sync for a service.
 
 ## Boundaries
 
@@ -34,5 +39,5 @@ The matching website repository owns `supabase/migrations/202610300001_service_s
 - `dart analyze lib/services/service_plan_sync.dart lib/models/service_plan.dart`: passes.
 - JavaScript sync tests and local PostgreSQL/PGlite authorization/revision tests are in the website repository.
 - Full Flutter dependency resolution, widget tests, and native build are **not verified**. Automatic approval review blocked the Flutter setup command because it attempted to contact a cloud metadata endpoint. That command was not retried or bypassed; only direct, network-free Dart checks were used afterward.
-- GitHub access is verified and this integration is saved on `ipad-foundation`. Supabase's tools currently return an “Unknown tool” connection error in the authoring chat, despite the owner's account connection. Project configuration and an actual cloud round trip remain pending; no live sync success is claimed.
-- Run `flutter pub get` on the Mac to resolve the pinned Supabase dependency and update `pubspec.lock`, then run `flutter analyze` and `flutter test` before a native build. The lockfile has not been regenerated in the authoring environment.
+- The database and both clients now have matching public project configuration. Hosted SQL/RLS checks pass; anonymous HTTP plan reads are denied. No real app login or plan has been seeded.
+- Signed-in website/iPad sync remains unverified until the owner creates the test login and runs the updated app on the physical iPad.

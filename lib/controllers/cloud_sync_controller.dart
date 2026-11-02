@@ -13,8 +13,16 @@ import '../services/service_plan_sync.dart';
 import 'library_controller.dart';
 
 class CloudConnection {
-  static const url = String.fromEnvironment('SUPABASE_URL');
-  static const key = String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
+  // Public development-project settings; never put administrative keys here.
+  // Build-time values can override these for a separate environment.
+  static const url = String.fromEnvironment(
+    'SUPABASE_URL',
+    defaultValue: 'https://pmmxucapanhsnuyoqxde.supabase.co',
+  );
+  static const key = String.fromEnvironment(
+    'SUPABASE_PUBLISHABLE_KEY',
+    defaultValue: 'sb_publishable_HkoGNQcl-LQQ5Xb37GoPzQ_pWCuR16O',
+  );
   static SupabaseClient? client;
   static Future<void> initialize() async {
     if (url.isEmpty ||
