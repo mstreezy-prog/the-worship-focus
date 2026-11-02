@@ -37,8 +37,9 @@ void validateSyncDocument(SyncDocument doc) {
   }
   final ids = <String>{};
   for (final value in items) {
-    if (value is! Map)
+    if (value is! Map) {
       throw const FormatException('Invalid cloud service entry');
+    }
     final id = value['id'],
         type = value['type'],
         title = value['title'],
@@ -51,16 +52,19 @@ void validateSyncDocument(SyncDocument doc) {
         title is! String ||
         title.length > 300 ||
         notes is! String ||
-        notes.length > 10000)
+        notes.length > 10000) {
       throw const FormatException('Invalid cloud service entry');
+    }
     if (type == 'song') {
       final songId = value['songId'], key = value['key'];
       if (songId is! String ||
           songId.isEmpty ||
           songId.length > 200 ||
           (key != null &&
-              (key is! String || !RegExp(r'^[A-G](?:#|b)?m?$').hasMatch(key))))
+              (key is! String ||
+                  !RegExp(r'^[A-G](?:#|b)?m?$').hasMatch(key)))) {
         throw const FormatException('Invalid cloud song reference');
+      }
     }
   }
 }
@@ -196,11 +200,12 @@ class ServicePlanSync {
       if (!dirty) {
         if (row != null) {
           if (!row.deleted) validateSyncDocument(row.document);
-          if (localPrint != remotePrint)
+          if (localPrint != remotePrint) {
             await local.apply(
               row.deleted ? [] : [row.document],
               row.deleted ? [id] : [],
             );
+          }
           await acknowledge(row);
         }
         continue;
@@ -210,10 +215,11 @@ class ServicePlanSync {
         continue;
       }
       if (!sameRevision) {
-        if (row == null && base != null)
+        if (row == null && base != null) {
           throw StateError(
             'Cloud plan unavailable; the local copy is preserved',
           );
+        }
         final upserts = <SyncDocument>[];
         if (doc != null) {
           upserts.add({
@@ -248,8 +254,9 @@ class ServicePlanSync {
         if (syncFingerprint(
               local.read().where((doc) => doc['id'] == id).firstOrNull,
             ) !=
-            syncFingerprint(snapshot))
+            syncFingerprint(snapshot)) {
           _again = true;
+        }
       } on CloudSyncConflict {
         _again = true;
       }

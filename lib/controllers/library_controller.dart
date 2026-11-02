@@ -94,8 +94,9 @@ class LibraryController extends ChangeNotifier {
   void setCloudScope(String? churchId) {
     _cloudChurchId = churchId;
     if (_selectedServicePlan == null ||
-        _selectedServicePlan?.cloudChurchId != churchId)
+        _selectedServicePlan?.cloudChurchId != churchId) {
       _selectedServicePlan = servicePlans.firstOrNull;
+    }
     notifyListeners();
   }
 
@@ -125,8 +126,9 @@ class LibraryController extends ChangeNotifier {
         servicePlans.firstOrNull;
     _scheduleAutosave();
     await flushPendingSave();
-    if (_saveState == LibrarySaveState.error)
+    if (_saveState == LibrarySaveState.error) {
       throw StateError('Downloaded plans could not be saved on this device');
+    }
   }
 
   void updateSelectedServicePlanNotes(String value) {

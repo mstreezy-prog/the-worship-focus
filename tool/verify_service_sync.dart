@@ -1,5 +1,8 @@
 // Network-free verification. Run directly with Dart; no Flutter setup required.
+// Relative imports intentionally avoid requiring Flutter package resolution.
+// ignore_for_file: avoid_relative_lib_imports
 import 'dart:convert';
+import 'dart:io';
 
 import '../lib/services/service_plan_sync.dart';
 import '../lib/models/service_plan.dart';
@@ -114,7 +117,7 @@ class Fixture implements CloudPlanLocal, CloudPlanRemote {
 
 Future<void> run(String name, Future<void> Function() body) async {
   await body();
-  print('PASS $name');
+  stdout.writeln('PASS $name');
 }
 
 Future<void> main() async {
@@ -265,5 +268,5 @@ Future<void> main() async {
     }
     check(rejected, 'Invalid data accepted');
   });
-  print('9 service-sync checks passed.');
+  stdout.writeln('9 service-sync checks passed.');
 }

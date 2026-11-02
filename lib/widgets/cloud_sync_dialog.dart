@@ -23,10 +23,12 @@ class _CloudSyncDialogState extends State<CloudSyncDialog> {
     try {
       await task();
     } on Object {
-      if (mounted)
+      if (mounted) {
         setState(
-          () => _error = 'Could not complete this step. Check your connection and account details, then try again.',
+          () => _error =
+              'Could not complete this step. Check your connection and account details, then try again.',
         );
+      }
     } finally {
       _password.clear();
       if (mounted) setState(() => _busy = false);

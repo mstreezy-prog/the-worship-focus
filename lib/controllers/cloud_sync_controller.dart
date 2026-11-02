@@ -28,13 +28,18 @@ class CloudConnection {
     if (url.isEmpty ||
         key.isEmpty ||
         !url.startsWith('https://') ||
-        key.startsWith('sb_secret_'))
+        key.startsWith('sb_secret_')) {
       return;
+    }
     if (key.split('.').length == 3) {
       try {
-        final claims = jsonDecode(
-          utf8.decode(base64Url.decode(base64Url.normalize(key.split('.')[1]))),
-        ) as Map;
+        final claims =
+            jsonDecode(
+                  utf8.decode(
+                    base64Url.decode(base64Url.normalize(key.split('.')[1])),
+                  ),
+                )
+                as Map;
         if (claims['role'] != 'anon') return;
       } on Object {
         return;
@@ -91,8 +96,9 @@ class CloudSyncController extends ChangeNotifier implements CloudPlanLocal {
 
   Future<void> _saveState() async {
     final file = _stateFile;
-    if (file != null)
+    if (file != null) {
       await _writeFile(file, {'baselines': _baselines, 'songIds': _songIds});
+    }
   }
 
   Future<void> initialize() async {
@@ -131,30 +137,31 @@ class CloudSyncController extends ChangeNotifier implements CloudPlanLocal {
       if (await file.exists()) {
         saved = jsonDecode(await file.readAsString()) as Map;
       }
+      final savedUserId = saved?['userId'];
+      final savedChurchId = saved?['churchId'];
       try {
         await loadChurches();
       } on Object {
-        final cachedId = saved?['churchId'];
-        if (saved?['userId'] == session.user.id &&
-            cachedId is String &&
-            RegExp(r'^[a-f0-9-]{36}$').hasMatch(cachedId)) {
+        if (savedUserId == session.user.id &&
+            savedChurchId is String &&
+            RegExp(r'^[a-f0-9-]{36}$').hasMatch(savedChurchId)) {
           final cache = await _file(
-            'worship_focus_cloud_${session.user.id}_$cachedId.json',
+            'worship_focus_cloud_${session.user.id}_$savedChurchId.json',
           );
           if (await cache.exists()) {
             churches = [
-              {'id': cachedId, 'name': 'Downloaded church workspace'},
+              {'id': savedChurchId, 'name': 'Downloaded church workspace'},
             ];
-            await connect(cachedId);
+            await connect(savedChurchId);
             return;
           }
         }
         rethrow;
       }
-      if (saved != null) {
-        if (saved['userId'] == session.user.id &&
-            churches.any((church) => church['id'] == saved['churchId']))
-          await connect(saved['churchId'] as String);
+      if (savedUserId == session.user.id &&
+          savedChurchId is String &&
+          churches.any((church) => church['id'] == savedChurchId)) {
+        await connect(savedChurchId);
       }
     } on Object {
       _setStatus('Cloud sync waiting for a connection');
@@ -185,10 +192,9 @@ class CloudSyncController extends ChangeNotifier implements CloudPlanLocal {
   }
 
   Future<String> createChurch(String name) async {
-    final id = await _client!.rpc(
-      'twf_create_church',
-      params: {'p_name': name.trim()},
-    ) as String;
+    final id =
+        await _client!.rpc('twf_create_church', params: {'p_name': name.trim()})
+            as String;
     await loadChurches();
     return id;
   }
@@ -197,8 +203,10 @@ class CloudSyncController extends ChangeNotifier implements CloudPlanLocal {
     String churchId, {
     bool includeDevicePlans = false,
   }) async {
-    if (_session == null || !churches.any((church) => church['id'] == churchId))
+    if (_session == null ||
+        !churches.any((church) => church['id'] == churchId)) {
       throw StateError('Select your church');
+    }
     await _sync?.stop();
     _timer?.cancel();
     _poll?.cancel();
@@ -271,8 +279,9 @@ class CloudSyncController extends ChangeNotifier implements CloudPlanLocal {
     if (_sync == null || _disposed) return;
     try {
       await library.flushPendingSave();
-      if (library.saveState == LibrarySaveState.error)
+      if (library.saveState == LibrarySaveState.error) {
         throw StateError('Device save failed');
+      }
       read();
       await _saveState();
       await _sync!.sync();
