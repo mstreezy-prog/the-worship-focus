@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../services/app_links.dart';
 
 class AppInformationDialog extends StatefulWidget {
@@ -32,7 +33,7 @@ class _AppInformationDialogState extends State<AppInformationDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Your songs, service plans, and pencil marks are stored on this device. Keep a library backup before changing devices.',
+              'Your charts and pencil marks stay on this device. Service plans also sync to your church workspace when Cloud Sync is connected. Keep a library backup before changing devices.',
             ),
             const SizedBox(height: 16),
             ListTile(

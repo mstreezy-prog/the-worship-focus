@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../controllers/library_controller.dart';
+import '../controllers/cloud_sync_controller.dart';
+import '../widgets/cloud_sync_dialog.dart';
 import '../models/music_xml_arrangement.dart';
 import '../models/library_backup.dart';
 import '../models/performance_content.dart';
@@ -43,6 +45,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final LibraryController _controller = LibraryController();
+  late final CloudSyncController _cloud = CloudSyncController(_controller);
   final ChordProDocumentService _documents = ChordProDocumentService();
   final MusicXmlDocumentService _musicXmlDocuments = MusicXmlDocumentService();
   final LibraryBackupService _libraryBackup = LibraryBackupService();
@@ -53,11 +56,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    unawaited(_controller.initialize());
+    unawaited(_initializeLibrary());
+  }
+
+  Future<void> _initializeLibrary() async {
+    await _controller.initialize();
+    if (mounted) await _cloud.initialize();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) unawaited(_cloud.syncNow());
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached ||
         state == AppLifecycleState.hidden) {
@@ -68,6 +77,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _cloud.dispose();
     _controller.dispose();
     _undoController.dispose();
     super.dispose();
@@ -338,9 +348,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<LibraryRestoreMode?> _showRestoreLibraryDialog(LibraryBackup backup) {
-    final date = MaterialLocalizations.of(
-      context,
-    ).formatMediumDate(backup.createdAt.toLocal());
+    final date = MaterialLocalizations.of(context)
+        .formatMediumDate(backup.createdAt.toLocal());
     return showDialog<LibraryRestoreMode>(
       context: context,
       builder: (context) => AlertDialog(
@@ -592,6 +601,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ],
                 ),
                 actions: [
+                  IconButton(
+                    tooltip: 'Cloud sync',
+                    icon: const Icon(Icons.cloud_sync_outlined),
+                    onPressed: () => showDialog<void>(
+                      context: context,
+                      builder: (_) => CloudSyncDialog(controller: _cloud),
+                    ),
+                  ),
                   ..._buildAppActions(wide),
                   IconButton(
                     tooltip: 'About, privacy and support',
@@ -721,6 +738,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       onAddSong: _controller.addSongToServicePlan,
       onAddSection: _controller.addServicePlanSection,
       onUpdateItemNotes: _controller.updateServicePlanItemNotes,
+      onUpdatePlanNotes: _controller.updateSelectedServicePlanNotes,
+      onUpdateItemKey: _controller.updateServicePlanItemKey,
+      onLinkChart: _controller.linkServicePlanItemChart,
       onRemoveItem: _controller.removeServicePlanItem,
       onReorderItems: _controller.reorderServicePlanItems,
       onPerform: () {

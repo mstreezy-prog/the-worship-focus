@@ -3,8 +3,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'screens/home_screen.dart';
+import 'controllers/cloud_sync_controller.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await CloudConnection.initialize();
   LicenseRegistry.addLicense(() async* {
     yield LicenseEntryWithLineBreaks([
       'CMG Sans',

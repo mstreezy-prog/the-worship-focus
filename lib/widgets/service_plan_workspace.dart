@@ -57,6 +57,9 @@ class ServicePlanWorkspace extends StatelessWidget {
     required this.onReorderItems,
     required this.onPerform,
     required this.onExport,
+    this.onUpdatePlanNotes,
+    this.onUpdateItemKey,
+    this.onLinkChart,
     super.key,
   });
 
@@ -76,6 +79,9 @@ class ServicePlanWorkspace extends StatelessWidget {
   final ReorderCallback onReorderItems;
   final VoidCallback onPerform;
   final VoidCallback onExport;
+  final ValueChanged<String>? onUpdatePlanNotes;
+  final void Function(ServicePlanItem, String)? onUpdateItemKey;
+  final void Function(ServicePlanItem, Song)? onLinkChart;
 
   @override
   Widget build(BuildContext context) {
@@ -122,11 +128,32 @@ class ServicePlanWorkspace extends StatelessWidget {
                 onExport: onExport,
               ),
               const SizedBox(height: 16),
+              if (onUpdatePlanNotes != null)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.notes),
+                    label: Text(
+                      plan.notes.isEmpty
+                          ? 'Service notes'
+                          : 'Edit service notes',
+                    ),
+                    onPressed: () => _showPlanNotes(context, plan),
+                  ),
+                ),
+              if (plan.notes.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    plan.notes,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               Expanded(
                 child: items.isEmpty
                     ? _EmptyPlan(
-                        message:
-                            'Add songs and section headers to build this service order.',
+                        message: 'Add songs and section headers to build this service order.',
                         actionLabel: 'Add song',
                         onCreatePlan: () => _showSongPicker(context, plan),
                       )
@@ -150,6 +177,12 @@ class ServicePlanWorkspace extends StatelessWidget {
                             onRemove: () => onRemoveItem(item),
                             onEditNotes: (notes) =>
                                 onUpdateItemNotes(item, notes),
+                            onEditKey: onUpdateItemKey == null
+                                ? null
+                                : () => _showPlanningKey(context, item, song),
+                            onLinkChart: onLinkChart == null
+                                ? null
+                                : () => _showChartPicker(context, item),
                           );
                         },
                       ),
@@ -159,6 +192,114 @@ class ServicePlanWorkspace extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _showPlanNotes(BuildContext context, ServicePlan plan) async {
+    final input = TextEditingController(text: plan.notes);
+    final value = await _showServicePlanDialog<String>(
+      context,
+      builder: (context) => AlertDialog(
+        title: const Text('Service notes'),
+        content: TextField(
+          controller: input,
+          minLines: 3,
+          maxLines: 7,
+          maxLength: 10000,
+          decoration: const InputDecoration(
+            hintText: 'Readings, prayer and transitions',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, input.text),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    input.dispose();
+    if (value != null && context.mounted) onUpdatePlanNotes?.call(value);
+  }
+
+  Future<void> _showPlanningKey(
+    BuildContext context,
+    ServicePlanItem item,
+    Song? song,
+  ) async {
+    const roots = [
+      'C',
+      'C#',
+      'Db',
+      'D',
+      'D#',
+      'Eb',
+      'E',
+      'F',
+      'F#',
+      'Gb',
+      'G',
+      'G#',
+      'Ab',
+      'A',
+      'A#',
+      'Bb',
+      'B',
+    ];
+    final minor = (item.planningKey ?? song?.key ?? '').endsWith('m');
+    final keys = roots.map((root) => minor ? '${root}m' : root).toList();
+    final value = await _showServicePlanDialog<String>(
+      context,
+      builder: (context) => SimpleDialog(
+        title: const Text('Planning key'),
+        children: [
+          for (final key in keys)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(context, key),
+              child: Text(key),
+            ),
+        ],
+      ),
+    );
+    if (value != null && context.mounted) onUpdateItemKey?.call(item, value);
+  }
+
+  Future<void> _showChartPicker(
+    BuildContext context,
+    ServicePlanItem item,
+  ) async {
+    final value = await _showServicePlanSheet<Song>(
+      context,
+      builder: (context) => SafeArea(
+        child: SizedBox(
+          height: 440,
+          child: Column(
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(18),
+                child: Text('Choose the chart on this iPad'),
+              ),
+              Expanded(
+                child: ListView(
+                  children: [
+                    for (final song in librarySongs)
+                      ListTile(
+                        title: Text(_songTitle(song)),
+                        subtitle: Text(song.key ?? 'Key not set'),
+                        onTap: () => Navigator.pop(context, song),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (value != null && context.mounted) onLinkChart?.call(item, value);
   }
 
   Future<void> _showSongPicker(BuildContext context, ServicePlan plan) async {
@@ -255,6 +396,8 @@ class _PlanItemCard extends StatelessWidget {
     required this.index,
     required this.onRemove,
     required this.onEditNotes,
+    this.onEditKey,
+    this.onLinkChart,
     super.key,
   });
 
@@ -263,11 +406,15 @@ class _PlanItemCard extends StatelessWidget {
   final int index;
   final VoidCallback onRemove;
   final ValueChanged<String> onEditNotes;
+  final VoidCallback? onEditKey;
+  final VoidCallback? onLinkChart;
 
   @override
   Widget build(BuildContext context) {
     final isSection = item.isSection;
     final title = isSection
+        ? item.title
+        : item.title.isNotEmpty
         ? item.title
         : song == null
         ? 'Song no longer in library'
@@ -277,6 +424,7 @@ class _PlanItemCard extends StatelessWidget {
               ? 'Section header'
               : item.notes.trim()
         : [
+            if (item.planningKey != null) 'Planning key: ${item.planningKey}',
             if (song?.artist?.trim().isNotEmpty == true) song!.artist!,
             if (item.notes.trim().isNotEmpty) item.notes.trim(),
             if (song == null) 'Remove this entry or add the song again.',
@@ -320,6 +468,27 @@ class _PlanItemCard extends StatelessWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (!isSection && (onEditKey != null || onLinkChart != null))
+              PopupMenuButton<String>(
+                tooltip: 'Song planning options',
+                icon: const Icon(Icons.tune),
+                onSelected: (value) {
+                  if (value == 'key') onEditKey?.call();
+                  if (value == 'chart') onLinkChart?.call();
+                },
+                itemBuilder: (context) => [
+                  if (onEditKey != null)
+                    const PopupMenuItem(
+                      value: 'key',
+                      child: Text('Planning key'),
+                    ),
+                  if (onLinkChart != null)
+                    const PopupMenuItem(
+                      value: 'chart',
+                      child: Text('Use chart from this iPad'),
+                    ),
+                ],
+              ),
             IconButton(
               tooltip: isSection ? 'Edit section text' : 'Edit song note',
               onPressed: () => _editNotes(context),
@@ -473,9 +642,8 @@ class _PlanToolbar extends StatelessWidget {
           onPressed: () => _selectDate(context),
           icon: const Icon(Icons.calendar_today_outlined),
           label: Text(
-            MaterialLocalizations.of(
-              context,
-            ).formatMediumDate(selectedPlan.date),
+            MaterialLocalizations.of(context)
+                .formatMediumDate(selectedPlan.date),
           ),
         ),
         OutlinedButton.icon(
@@ -576,8 +744,7 @@ class _PlanToolbar extends StatelessWidget {
 class _EmptyPlan extends StatelessWidget {
   const _EmptyPlan({
     required this.onCreatePlan,
-    this.message =
-        'Create a plan for an upcoming service, then choose songs and set their order.',
+    this.message = 'Create a plan for an upcoming service, then choose songs and set their order.',
     this.actionLabel = 'Create service plan',
   });
 

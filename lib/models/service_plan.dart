@@ -6,31 +6,52 @@ class ServicePlanItem {
     required this.id,
     required this.songId,
     this.notes = '',
-  }) : type = ServicePlanItemType.song,
-       title = '';
+    this.title = '',
+    this.planningKey,
+    this.cloudSongId,
+    this.cloudData = const {},
+  }) : type = ServicePlanItemType.song;
 
   const ServicePlanItem.section({
     required this.id,
     required this.title,
     this.notes = '',
   }) : type = ServicePlanItemType.section,
-       songId = null;
+       songId = null,
+       planningKey = null,
+       cloudSongId = null,
+       cloudData = const {};
 
   final String id;
   final ServicePlanItemType type;
   final String? songId;
   final String title;
   final String notes;
+  final String? planningKey;
+  final String? cloudSongId;
+  final Map<String, Object?> cloudData;
 
   bool get isSong => type == ServicePlanItemType.song;
   bool get isSection => type == ServicePlanItemType.section;
 
-  ServicePlanItem copyWith({String? title, String? notes, String? songId}) {
+  ServicePlanItem copyWith({
+    String? title,
+    String? notes,
+    String? songId,
+    String? planningKey,
+    bool clearPlanningKey = false,
+    String? cloudSongId,
+    Map<String, Object?>? cloudData,
+  }) {
     return switch (type) {
       ServicePlanItemType.song => ServicePlanItem.song(
         id: id,
         songId: songId ?? this.songId!,
         notes: notes ?? this.notes,
+        title: title ?? this.title,
+        planningKey: clearPlanningKey ? null : planningKey ?? this.planningKey,
+        cloudSongId: cloudSongId ?? this.cloudSongId,
+        cloudData: cloudData ?? this.cloudData,
       ),
       ServicePlanItemType.section => ServicePlanItem.section(
         id: id,
@@ -46,6 +67,9 @@ class ServicePlanItem {
     if (songId != null) 'songId': songId,
     if (title.isNotEmpty) 'title': title,
     if (notes.isNotEmpty) 'notes': notes,
+    if (planningKey != null) 'planningKey': planningKey,
+    if (cloudSongId != null) 'cloudSongId': cloudSongId,
+    if (cloudData.isNotEmpty) 'cloudData': cloudData,
   };
 
   factory ServicePlanItem.fromJson(Map<String, Object?> json) {
@@ -71,6 +95,12 @@ class ServicePlanItem {
       id: id,
       songId: songId,
       notes: notes is String ? notes : '',
+      title: json['title'] as String? ?? '',
+      planningKey: json['planningKey'] as String?,
+      cloudSongId: json['cloudSongId'] as String?,
+      cloudData: json['cloudData'] is Map
+          ? Map<String, Object?>.from(json['cloudData'] as Map)
+          : const {},
     );
   }
 
@@ -101,6 +131,9 @@ class ServicePlan {
     required this.id,
     required this.title,
     required this.date,
+    this.notes = '',
+    this.cloudChurchId,
+    this.cloudPlanId,
     List<ServicePlanItem>? items,
     List<String>? songIds,
   }) : assert(items != null || songIds != null),
@@ -118,6 +151,9 @@ class ServicePlan {
   final String title;
   final DateTime date;
   final List<ServicePlanItem> items;
+  final String notes;
+  final String? cloudChurchId;
+  final String? cloudPlanId;
 
   /// Kept as a convenient compatibility view of the song entries.
   List<String> get songIds =>
@@ -129,11 +165,17 @@ class ServicePlan {
     DateTime? date,
     List<ServicePlanItem>? items,
     List<String>? songIds,
+    String? notes,
+    String? cloudChurchId,
+    String? cloudPlanId,
   }) {
     return ServicePlan(
       id: id ?? this.id,
       title: title ?? this.title,
       date: date ?? this.date,
+      notes: notes ?? this.notes,
+      cloudChurchId: cloudChurchId ?? this.cloudChurchId,
+      cloudPlanId: cloudPlanId ?? this.cloudPlanId,
       items:
           items ??
           (songIds == null
@@ -153,6 +195,9 @@ class ServicePlan {
     'id': id,
     'title': title,
     'date': date.toIso8601String(),
+    if (notes.isNotEmpty) 'notes': notes,
+    if (cloudChurchId != null) 'cloudChurchId': cloudChurchId,
+    if (cloudPlanId != null) 'cloudPlanId': cloudPlanId,
     'items': items.map((item) => item.toJson()).toList(),
     // Retain a song-only view for plans written by earlier app versions.
     'songIds': songIds,
@@ -173,6 +218,9 @@ class ServicePlan {
         id: id,
         title: title,
         date: date,
+        notes: json['notes'] as String? ?? '',
+        cloudChurchId: json['cloudChurchId'] as String?,
+        cloudPlanId: json['cloudPlanId'] as String?,
         items: rawItems
             .map((value) {
               if (value is! Map<String, Object?>) {
@@ -191,6 +239,9 @@ class ServicePlan {
       id: id,
       title: title,
       date: date,
+      notes: json['notes'] as String? ?? '',
+      cloudChurchId: json['cloudChurchId'] as String?,
+      cloudPlanId: json['cloudPlanId'] as String?,
       songIds: rawSongIds.cast<String>(),
     );
   }

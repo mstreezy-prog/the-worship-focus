@@ -34,11 +34,12 @@ class LibraryController extends ChangeNotifier {
     _songs = _repository.getAll().toList();
     _servicePlans = _servicePlanRepository.getAll().toList();
     _selectedSong = _songs.firstOrNull;
-    _selectedServicePlan = _servicePlans.firstOrNull;
+    _selectedServicePlan = servicePlans.firstOrNull;
   }
 
   final RecentServiceStore _recentServiceStore;
   Future<void> _recentServiceWrites = Future.value();
+  Future<void> _persistence = Future.value();
 
   void _rememberService() {
     final id = _selectedServicePlan?.id;
@@ -70,6 +71,10 @@ class LibraryController extends ChangeNotifier {
   bool _sortAscending = true;
 
   List<Song> get songs => List.unmodifiable(_songs);
+  String? _cloudChurchId;
+  String? get cloudChurchId => _cloudChurchId;
+  List<ServicePlan> get allDeviceServicePlans =>
+      List.unmodifiable(_servicePlans);
   Song? get selectedSong => _selectedSong;
   LibrarySection get section => _section;
   LibrarySaveState get saveState => _saveState;
@@ -77,12 +82,89 @@ class LibraryController extends ChangeNotifier {
   String get searchQuery => _searchQuery;
   SongSort get songSort => _songSort;
   bool get sortAscending => _sortAscending;
-  List<ServicePlan> get servicePlans => List.unmodifiable(_servicePlans);
+  List<ServicePlan> get servicePlans => List.unmodifiable(
+    _servicePlans.where((plan) => plan.cloudChurchId == _cloudChurchId),
+  );
   ServicePlan? get selectedServicePlan => _selectedServicePlan;
   Set<String> get serviceSongIds => Set.unmodifiable(
     (_selectedServicePlan?.songIds ?? const <String>[]).toSet(),
   );
   List<Song> get serviceSongs => servicePlanSongs(_selectedServicePlan);
+
+  void setCloudScope(String? churchId) {
+    _cloudChurchId = churchId;
+    if (_selectedServicePlan == null ||
+        _selectedServicePlan?.cloudChurchId != churchId)
+      _selectedServicePlan = servicePlans.firstOrNull;
+    notifyListeners();
+  }
+
+  Future<void> applyCloudPlans(
+    List<ServicePlan> upserts,
+    List<Song> addedSongs,
+    List<String> deletedCloudIds,
+    String churchId,
+  ) async {
+    for (final song in addedSongs) {
+      if (!_songs.any((existing) => existing.id == song.id)) {
+        _songs.add(song);
+        _repository.add(song);
+      }
+    }
+    _servicePlans.removeWhere(
+      (plan) =>
+          plan.cloudChurchId == churchId &&
+          (deletedCloudIds.contains(plan.cloudPlanId ?? plan.id) ||
+              upserts.any((next) => next.id == plan.id)),
+    );
+    _servicePlans.addAll(upserts);
+    _servicePlanRepository.replaceAll(_servicePlans);
+    final selectedId = _selectedServicePlan?.id;
+    _selectedServicePlan =
+        servicePlans.where((plan) => plan.id == selectedId).firstOrNull ??
+        servicePlans.firstOrNull;
+    _scheduleAutosave();
+    await flushPendingSave();
+    if (_saveState == LibrarySaveState.error)
+      throw StateError('Downloaded plans could not be saved on this device');
+  }
+
+  void updateSelectedServicePlanNotes(String value) {
+    final plan = _selectedServicePlan;
+    if (plan != null) _replaceServicePlan(plan.copyWith(notes: value));
+  }
+
+  void updateServicePlanItemKey(ServicePlanItem item, String key) {
+    final plan = _selectedServicePlan;
+    if (plan == null) return;
+    _replaceServicePlan(
+      plan.copyWith(
+        items: [
+          for (final candidate in plan.items)
+            if (candidate.id == item.id)
+              candidate.copyWith(planningKey: key)
+            else
+              candidate,
+        ],
+      ),
+    );
+  }
+
+  void linkServicePlanItemChart(ServicePlanItem item, Song song) {
+    final plan = _selectedServicePlan;
+    if (plan == null) return;
+    _replaceServicePlan(
+      plan.copyWith(
+        items: [
+          for (final candidate in plan.items)
+            if (candidate.id == item.id)
+              candidate.copyWith(songId: song.id)
+            else
+              candidate,
+        ],
+      ),
+    );
+  }
 
   List<Song> servicePlanSongs(ServicePlan? plan) {
     if (plan == null) return const <Song>[];
@@ -139,10 +221,10 @@ class LibraryController extends ChangeNotifier {
         ..addAll(loadedPlans);
       _selectedSong = _songs.where((song) => song.id == selectedId).firstOrNull;
       _selectedSong ??= _songs.firstOrNull;
-      _selectedServicePlan = _servicePlans
+      _selectedServicePlan = servicePlans
           .where((plan) => plan.id == selectedPlanId)
           .firstOrNull;
-      _selectedServicePlan ??= _servicePlans.firstOrNull;
+      _selectedServicePlan ??= servicePlans.firstOrNull;
       _saveState = LibrarySaveState.saved;
       _saveError = null;
     } on Object catch (error) {
@@ -437,6 +519,7 @@ class LibraryController extends ChangeNotifier {
   ServicePlan createServicePlan({String? title, bool selectSection = true}) {
     final plan = ServicePlan(
       id: 'plan-${DateTime.now().microsecondsSinceEpoch}',
+      cloudChurchId: _cloudChurchId,
       title: title?.trim().isNotEmpty == true
           ? title!.trim()
           : 'New Service Plan',
@@ -486,9 +569,9 @@ class LibraryController extends ChangeNotifier {
     _servicePlans.removeAt(index);
     _servicePlanRepository.delete(plan.id);
     if (_selectedServicePlan?.id == plan.id) {
-      _selectedServicePlan = _servicePlans.isEmpty
+      _selectedServicePlan = servicePlans.isEmpty
           ? null
-          : _servicePlans[index.clamp(0, _servicePlans.length - 1).toInt()];
+          : servicePlans[index.clamp(0, servicePlans.length - 1).toInt()];
     }
     _scheduleAutosave();
   }
@@ -654,6 +737,7 @@ class LibraryController extends ChangeNotifier {
 
   Future<void> flushPendingSave() async {
     await _recentServiceWrites;
+    await _persistence;
     _autosaveTimer?.cancel();
     _autosaveTimer = null;
     if (_saveState == LibrarySaveState.unsaved ||
@@ -708,9 +792,15 @@ class LibraryController extends ChangeNotifier {
   }
 
   Future<void> _persist() async {
+    final next = _persistence.then((_) => _persistNow());
+    _persistence = next.catchError((Object _) {});
+    await next;
+  }
+
+  Future<void> _persistNow() async {
     final savingRevision = _revision;
     _saveState = LibrarySaveState.saving;
-    notifyListeners();
+    if (!_disposed) notifyListeners();
     try {
       await Future.wait([
         _repository.persist(),
@@ -732,8 +822,7 @@ class LibraryController extends ChangeNotifier {
     _disposed = true;
     _autosaveTimer?.cancel();
     if (_saveState == LibrarySaveState.unsaved) {
-      unawaited(_repository.persist());
-      unawaited(_servicePlanRepository.persist());
+      unawaited(_persist());
     }
     super.dispose();
   }
