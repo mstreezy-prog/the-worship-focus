@@ -10,6 +10,25 @@ import 'package:worship_focus_studio/widgets/scrollable_score_view.dart';
 
 import 'fixtures/music_xml_engraving_cases.dart';
 
+Future<void> waitForRenderedScore(WidgetTester tester) async {
+  final reader = find.byKey(const ValueKey('xml-vertical-reader'));
+  // Score loading can involve asset/platform work outside Flutter's fake clock.
+  // Let that work finish between frames, then require the rendered reader.
+  // Waiting for all animations first would keep pumping the loading spinner.
+  for (var attempt = 0; attempt < 250; attempt++) {
+    await tester.pump();
+    expect(find.text('This score could not be rendered.'), findsNothing);
+    if (reader.evaluate().isNotEmpty) {
+      await tester.pumpAndSettle();
+      return;
+    }
+    await tester.runAsync(() async {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    });
+  }
+  fail('The score did not finish loading before the settings test.');
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(NotationRenderer.initialize);
@@ -48,7 +67,7 @@ void main() {
             ),
           ),
         );
-        await tester.pumpAndSettle();
+        await waitForRenderedScore(tester);
         await tester.tap(find.byTooltip('Reader settings'));
         // The first frame starts the route animation. Pumping one delayed frame
         // leaves the sheet at its initial off-screen position.
