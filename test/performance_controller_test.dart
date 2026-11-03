@@ -74,4 +74,52 @@ void main() {
     expect(restored.preferences.chordProColumns, ChordProColumnLayout.two);
     restored.dispose();
   });
+
+  test('old preferences keep their previous chord size and theme color', () {
+    final legacy = PerformancePreferences.fromJson({'fontSize': 30});
+    expect(legacy.chordFontSize, 33);
+    expect(legacy.chordColor, ChordProChordColor.automatic);
+    expect(legacy.chordColor.valueFor(PerformanceTheme.dark), isNull);
+    final explicit = PerformancePreferences.fromJson({
+      'fontSize': 18,
+      'chordFontSize': 100,
+      'chordColor': 'purple',
+    });
+    expect(explicit.fontSize, 18);
+    expect(explicit.chordFontSize, 50);
+    expect(explicit.chordColor, ChordProChordColor.purple);
+    expect(explicit.copyWith(chordFontSize: 1).chordFontSize, 14);
+  });
+
+  test(
+    'chord appearance persists independently through lyric and theme changes',
+    () async {
+      final store = _MemoryPreferencesStore();
+      final controller = PerformanceController(
+        store: store,
+        keepAwakeService: _FakeKeepAwakeService(),
+      );
+      await controller.initialize();
+      controller.setChordFontSize(40);
+      controller.setChordColor(ChordProChordColor.blue);
+      expect(controller.preferences.fontSize, 20);
+      controller.increaseFontSize();
+      controller.toggleTheme();
+      controller.toggleChordProColumns();
+      expect(controller.preferences.fontSize, 22);
+      expect(controller.preferences.chordFontSize, 40);
+      expect(controller.preferences.chordColor, ChordProChordColor.blue);
+      await Future<void>.delayed(Duration.zero);
+      controller.dispose();
+      final restored = PerformanceController(
+        store: store,
+        keepAwakeService: _FakeKeepAwakeService(),
+      );
+      await restored.initialize();
+      expect(restored.preferences.fontSize, 22);
+      expect(restored.preferences.chordFontSize, 40);
+      expect(restored.preferences.chordColor, ChordProChordColor.blue);
+      restored.dispose();
+    },
+  );
 }

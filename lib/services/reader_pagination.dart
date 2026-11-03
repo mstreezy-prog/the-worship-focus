@@ -1,16 +1,19 @@
 import 'dart:math' as math;
 
 import 'chordpro_document.dart';
+import 'chordpro_line_metrics.dart';
 
 class ReaderPagination {
   static List<ReaderPage> paginate({
     required double fontSize,
+    double? chordFontSize,
     required bool twoColumns,
     required List<ChordProContentBlock> blocks,
     required bool hasInfo,
     required double maxHeight,
   }) {
-    final lineHeight = fontSize * 2.75 + 4;
+    final lineHeight =
+        chordProLineHeight(fontSize, chordFontSize ?? fontSize * 1.1) + 4;
     final usableHeight = math.max(160.0, maxHeight - 56);
     final columnsPerPage = twoColumns ? 2 : 1;
     final linesPerColumn = math.max(2, (usableHeight / lineHeight).floor());

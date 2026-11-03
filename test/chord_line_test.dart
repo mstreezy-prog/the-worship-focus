@@ -62,4 +62,38 @@ void main() {
       greaterThan(tester.getTopLeft(find.text('G')).dx),
     );
   });
+
+  testWidgets('large colored chords leave small lyrics readable below them', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 500,
+            child: ChordLine(
+              line: ChordLayoutLine(
+                lyrics: 'Grace',
+                chords: [ChordToken('G', 0)],
+              ),
+              fontSize: 14,
+              chordFontSize: 50,
+              chordColor: Colors.blue,
+            ),
+          ),
+        ),
+      ),
+    );
+    final chord = tester.widget<Text>(find.text('G'));
+    final lyric = tester.widget<Text>(find.text('Grace'));
+    expect(chord.style?.fontSize, 50);
+    expect(chord.style?.color, Colors.blue);
+    expect(lyric.style?.fontSize, 14);
+    expect(lyric.style?.color, isNull);
+    expect(
+      tester.getBottomLeft(find.text('G')).dy,
+      lessThan(tester.getTopLeft(find.text('Grace')).dy),
+    );
+    expect(tester.takeException(), isNull);
+  });
 }

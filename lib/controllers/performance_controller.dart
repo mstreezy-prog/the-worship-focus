@@ -54,6 +54,14 @@ class PerformanceController extends ChangeNotifier {
     _update(_preferences.copyWith(fontSize: _preferences.fontSize - 2));
   }
 
+  void setChordFontSize(double value) {
+    _update(_preferences.copyWith(chordFontSize: value));
+  }
+
+  void setChordColor(ChordProChordColor color) {
+    _update(_preferences.copyWith(chordColor: color));
+  }
+
   void toggleTheme() {
     _update(
       _preferences.copyWith(
@@ -99,6 +107,13 @@ class PerformanceController extends ChangeNotifier {
   void _update(PerformancePreferences preferences) {
     _preferences = PerformancePreferences(
       fontSize: preferences.fontSize.clamp(14, 36).toDouble(),
+      chordFontSize: preferences.chordFontSize
+          .clamp(
+            PerformancePreferences.minimumChordFontSize,
+            PerformancePreferences.maximumChordFontSize,
+          )
+          .toDouble(),
+      chordColor: preferences.chordColor,
       theme: preferences.theme,
       chordProColumns: preferences.chordProColumns,
       keepAwake: preferences.keepAwake,

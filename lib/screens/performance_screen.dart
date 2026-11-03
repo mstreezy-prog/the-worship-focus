@@ -292,6 +292,11 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
     _resetChordProPage();
   }
 
+  void _changeChordProChordSize(double size) {
+    _controller.setChordFontSize(size);
+    _resetChordProPage();
+  }
+
   void _changeCurrentPage(int direction) {
     if (_showingScore) {
       _changeScorePage(direction);
@@ -387,6 +392,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                                 else
                                   ReaderPagination.paginate(
                                     fontSize: preferences.fontSize,
+                                    chordFontSize: preferences.chordFontSize,
                                     twoColumns:
                                         preferences.chordProColumns ==
                                             ChordProColumnLayout.two &&
@@ -500,6 +506,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
     required ScoreDisplayPreferences scoreDisplayPreferences,
   }) {
     if (content == PerformanceContent.chordPro) {
+      final chordColor = preferences.chordColor.valueFor(preferences.theme);
       return ChordProPerformanceView(
         key: ValueKey(song.id),
         song: ReaderDocumentService.transpose(
@@ -513,6 +520,8 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
         annotationColor: _annotationColor,
         widthScale: _annotationWidthScale,
         fontSize: preferences.fontSize,
+        chordFontSize: preferences.chordFontSize,
+        chordColor: chordColor == null ? null : Color(chordColor),
         twoColumns: preferences.chordProColumns == ChordProColumnLayout.two,
         pageIndex: chartPage,
         layoutHeight: chartLayoutHeight,
@@ -693,74 +702,132 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
         builder: (context, _) {
           final preferences = _controller.preferences;
           return SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Reader settings',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  ...[
-                    Row(
-                      children: [
-                        const Expanded(child: Text('Text size')),
-                        IconButton(
-                          tooltip: 'Decrease font size',
-                          onPressed: () => _changeChordProFontSize(false),
-                          icon: const Icon(Icons.text_decrease),
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Reader settings',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    ...[
+                      Row(
+                        children: [
+                          const Expanded(child: Text('Lyric size')),
+                          IconButton(
+                            tooltip: 'Decrease font size',
+                            onPressed: () => _changeChordProFontSize(false),
+                            icon: const Icon(Icons.text_decrease),
+                          ),
+                          Text('${preferences.fontSize.round()} pt'),
+                          IconButton(
+                            tooltip: 'Increase font size',
+                            onPressed: () => _changeChordProFontSize(true),
+                            icon: const Icon(Icons.text_increase),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Expanded(child: Text('Chord size')),
+                          Text('${preferences.chordFontSize.round()} pt'),
+                        ],
+                      ),
+                      Slider(
+                        key: const ValueKey('chordpro-chord-size'),
+                        label:
+                            'Chord size ${preferences.chordFontSize.round()}',
+                        min: PerformancePreferences.minimumChordFontSize,
+                        max: PerformancePreferences.maximumChordFontSize,
+                        divisions:
+                            (PerformancePreferences.maximumChordFontSize -
+                                    PerformancePreferences.minimumChordFontSize)
+                                .round(),
+                        value: preferences.chordFontSize,
+                        onChanged: _changeChordProChordSize,
+                      ),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Chord color',
+                          style: Theme.of(context).textTheme.titleSmall,
                         ),
-                        Text('${preferences.fontSize.round()} pt'),
-                        IconButton(
-                          tooltip: 'Increase font size',
-                          onPressed: () => _changeChordProFontSize(true),
-                          icon: const Icon(Icons.text_increase),
-                        ),
-                      ],
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final color in ChordProChordColor.values)
+                            ChoiceChip(
+                              key: ValueKey(
+                                'chordpro-chord-color-${color.name}',
+                              ),
+                              label: Text(color.label),
+                              avatar: CircleAvatar(
+                                radius: 7,
+                                backgroundColor: Color(
+                                  color.valueFor(preferences.theme) ??
+                                      (preferences.theme ==
+                                              PerformanceTheme.dark
+                                          ? 0xFFFFFFFF
+                                          : 0xFF111111),
+                                ),
+                              ),
+                              selected: color == preferences.chordColor,
+                              onSelected: (_) =>
+                                  _controller.setChordColor(color),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      SwitchListTile(
+                        title: const Text('Two columns'),
+                        value:
+                            preferences.chordProColumns ==
+                            ChordProColumnLayout.two,
+                        onChanged: (_) => _changeChordProColumns(),
+                      ),
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text('Transpose for this session'),
+                          ),
+                          IconButton(
+                            tooltip: 'Transpose down',
+                            onPressed: () =>
+                                _controller.transpose(_currentSong.id, -1),
+                            icon: const Icon(Icons.remove),
+                          ),
+                          Text('${_controller.transposeFor(_currentSong.id)}'),
+                          IconButton(
+                            tooltip: 'Transpose up',
+                            onPressed: () =>
+                                _controller.transpose(_currentSong.id, 1),
+                            icon: const Icon(Icons.add),
+                          ),
+                        ],
+                      ),
+                      const Text(
+                        'Chord shapes appear in the original key. Return transpose to 0 to view them.',
+                      ),
+                    ],
+                    SwitchListTile(
+                      title: const Text('Dark stage theme'),
+                      value: preferences.theme == PerformanceTheme.dark,
+                      onChanged: (_) => _controller.toggleTheme(),
                     ),
                     SwitchListTile(
-                      title: const Text('Two columns'),
-                      value:
-                          preferences.chordProColumns ==
-                          ChordProColumnLayout.two,
-                      onChanged: (_) => _changeChordProColumns(),
-                    ),
-                    Row(
-                      children: [
-                        const Expanded(
-                          child: Text('Transpose for this session'),
-                        ),
-                        IconButton(
-                          tooltip: 'Transpose down',
-                          onPressed: () =>
-                              _controller.transpose(_currentSong.id, -1),
-                          icon: const Icon(Icons.remove),
-                        ),
-                        Text('${_controller.transposeFor(_currentSong.id)}'),
-                        IconButton(
-                          tooltip: 'Transpose up',
-                          onPressed: () =>
-                              _controller.transpose(_currentSong.id, 1),
-                          icon: const Icon(Icons.add),
-                        ),
-                      ],
-                    ),
-                    const Text(
-                      'Chord shapes appear in the original key. Return transpose to 0 to view them.',
+                      title: const Text('Keep screen awake'),
+                      value: preferences.keepAwake,
+                      onChanged: (_) =>
+                          unawaited(_controller.toggleKeepAwake()),
                     ),
                   ],
-                  SwitchListTile(
-                    title: const Text('Dark stage theme'),
-                    value: preferences.theme == PerformanceTheme.dark,
-                    onChanged: (_) => _controller.toggleTheme(),
-                  ),
-                  SwitchListTile(
-                    title: const Text('Keep screen awake'),
-                    value: preferences.keepAwake,
-                    onChanged: (_) => unawaited(_controller.toggleKeepAwake()),
-                  ),
-                ],
+                ),
               ),
             ),
           );

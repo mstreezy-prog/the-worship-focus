@@ -20,6 +20,8 @@ class ChordProPerformanceView extends StatelessWidget {
     this.annotationColor = ScoreAnnotationColor.purple,
     this.widthScale = 1,
     required this.fontSize,
+    this.chordFontSize,
+    this.chordColor,
     required this.twoColumns,
     required this.pageIndex,
     this.layoutHeight,
@@ -32,6 +34,8 @@ class ChordProPerformanceView extends StatelessWidget {
   final ScoreAnnotationColor annotationColor;
   final double widthScale;
   final double fontSize;
+  final double? chordFontSize;
+  final Color? chordColor;
   final bool twoColumns;
   final int pageIndex;
   final double? layoutHeight;
@@ -46,6 +50,7 @@ class ChordProPerformanceView extends StatelessWidget {
         final anchors = ReaderAnnotationController.anchors(document.blocks);
         final pages = ReaderPagination.paginate(
           fontSize: fontSize,
+          chordFontSize: chordFontSize,
           twoColumns: twoColumns && constraints.maxWidth >= 700,
           blocks: document.blocks,
           hasInfo: true,
@@ -72,6 +77,8 @@ class ChordProPerformanceView extends StatelessWidget {
                   color: annotationColor,
                   widthScale: widthScale,
                   fontSize: fontSize,
+                  chordFontSize: chordFontSize,
+                  chordColor: chordColor,
                 ),
                 const SizedBox(height: 8),
                 Align(
@@ -95,6 +102,8 @@ class _ChordProPage extends StatelessWidget {
   const _ChordProPage({
     required this.columns,
     required this.fontSize,
+    required this.chordFontSize,
+    required this.chordColor,
     required this.anchors,
     required this.annotations,
     required this.tool,
@@ -104,6 +113,8 @@ class _ChordProPage extends StatelessWidget {
 
   final List<List<ChordProContentBlock>> columns;
   final double fontSize;
+  final double? chordFontSize;
+  final Color? chordColor;
   final Map<ChordProContentBlock, String> anchors;
   final ReaderAnnotationController? annotations;
   final ScoreAnnotationTool tool;
@@ -124,6 +135,8 @@ class _ChordProPage extends StatelessWidget {
             child: _ChordProColumn(
               blocks: columns[index],
               fontSize: fontSize,
+              chordFontSize: chordFontSize,
+              chordColor: chordColor,
               anchors: anchors,
               annotations: annotations,
               tool: tool,
@@ -141,6 +154,8 @@ class _ChordProColumn extends StatelessWidget {
   const _ChordProColumn({
     required this.blocks,
     required this.fontSize,
+    required this.chordFontSize,
+    required this.chordColor,
     required this.anchors,
     required this.annotations,
     required this.tool,
@@ -150,6 +165,8 @@ class _ChordProColumn extends StatelessWidget {
 
   final List<ChordProContentBlock> blocks;
   final double fontSize;
+  final double? chordFontSize;
+  final Color? chordColor;
   final Map<ChordProContentBlock, String> anchors;
   final ReaderAnnotationController? annotations;
   final ScoreAnnotationTool tool;
@@ -171,6 +188,8 @@ class _ChordProColumn extends StatelessWidget {
               ChordProTextBlock(:final line) => ChordLine(
                 line: line,
                 fontSize: fontSize,
+                chordFontSize: chordFontSize,
+                chordColor: chordColor,
               ),
               ChordProDiagramBlock(:final definition) => Padding(
                 padding: EdgeInsets.symmetric(vertical: fontSize * 0.35),

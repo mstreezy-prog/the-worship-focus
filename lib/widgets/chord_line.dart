@@ -4,12 +4,21 @@ import 'package:flutter/material.dart';
 
 import '../services/chord_layout_engine.dart';
 import '../services/chordpro_parser.dart';
+import '../services/chordpro_line_metrics.dart';
 
 class ChordLine extends StatelessWidget {
   final ChordLayoutLine line;
   final double fontSize;
+  final double? chordFontSize;
+  final Color? chordColor;
 
-  const ChordLine({super.key, required this.line, this.fontSize = 16});
+  const ChordLine({
+    super.key,
+    required this.line,
+    this.fontSize = 16,
+    this.chordFontSize,
+    this.chordColor,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -17,11 +26,14 @@ class ChordLine extends StatelessWidget {
       fontFamily: 'CMG Sans',
       fontSize: fontSize,
       fontWeight: FontWeight.w500,
+      height: 1.2,
     );
     final chordStyle = TextStyle(
       fontFamily: 'CMG Sans',
       fontWeight: FontWeight.w700,
-      fontSize: fontSize * 1.1,
+      fontSize: chordFontSize ?? fontSize * 1.1,
+      color: chordColor,
+      height: 1.2,
     );
 
     return LayoutBuilder(
@@ -70,14 +82,15 @@ class ChordLine extends StatelessWidget {
           textDirection: TextDirection.ltr,
         )..layout();
         final naturalWidth = math.max(lyricsPainter.width, nextChordLeft);
+        final lineHeight = chordProLineHeight(fontSize, chordStyle.fontSize!);
         return SizedBox(
-          height: fontSize * 2.75,
+          height: lineHeight,
           child: FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.topLeft,
             child: SizedBox(
               width: math.max(naturalWidth, constraints.maxWidth),
-              height: fontSize * 2.75,
+              height: lineHeight,
               child: Stack(
                 children: [
                   // chords
