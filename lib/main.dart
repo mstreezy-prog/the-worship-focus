@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import 'screens/home_screen.dart';
 import 'controllers/cloud_sync_controller.dart';
+import 'theme/worship_focus_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,7 +25,7 @@ class WorshipFocusStudioApp extends StatelessWidget {
     return MaterialApp(
       title: 'The Worship Focus',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.indigo),
+      theme: WorshipFocusTheme.light,
       home: const HomeScreen(),
     );
   }

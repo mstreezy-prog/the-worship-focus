@@ -1,4 +1,5 @@
 import '../widgets/score_display_settings.dart';
+import '../theme/worship_focus_theme.dart';
 import '../widgets/annotation_palette.dart';
 
 import 'dart:async';
@@ -326,8 +327,8 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
         final preferences = _controller.preferences;
         final dark = preferences.theme == PerformanceTheme.dark;
         final baseTheme = dark
-            ? ThemeData.dark(useMaterial3: true)
-            : ThemeData.light(useMaterial3: true);
+            ? WorshipFocusTheme.dark
+            : WorshipFocusTheme.light;
         final theme = baseTheme.copyWith(
           iconButtonTheme: const IconButtonThemeData(
             style: ButtonStyle(
@@ -340,7 +341,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
         return Theme(
           data: theme,
           child: Scaffold(
-            backgroundColor: theme.colorScheme.surface,
+            backgroundColor: theme.scaffoldBackgroundColor,
             body: SafeArea(
               child: CallbackShortcuts(
                 bindings: {
@@ -655,10 +656,10 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
     );
   }
 
-  void _showReaderSettings() {
+  void _showReaderSettings(BuildContext themedContext) {
     if (_showingScore) {
       showModalBottomSheet<void>(
-        context: context,
+        context: themedContext,
         showDragHandle: true,
         isScrollControlled: true,
         builder: (context) => ListenableBuilder(
@@ -694,7 +695,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
       return;
     }
     showModalBottomSheet<void>(
-      context: context,
+      context: themedContext,
       showDragHandle: true,
       isScrollControlled: true,
       builder: (context) => ListenableBuilder(
@@ -906,10 +907,12 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
         icon: const Icon(Icons.draw_outlined),
       ),
     );
-    final settings = IconButton(
-      tooltip: 'Reader settings',
-      onPressed: _showReaderSettings,
-      icon: const Icon(Icons.tune),
+    final settings = Builder(
+      builder: (context) => IconButton(
+        tooltip: 'Reader settings',
+        onPressed: () => _showReaderSettings(context),
+        icon: const Icon(Icons.tune),
+      ),
     );
     Widget row(List<Widget> children) => SingleChildScrollView(
       scrollDirection: Axis.horizontal,

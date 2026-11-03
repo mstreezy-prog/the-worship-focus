@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/score_annotation.dart';
+import '../theme/worship_focus_theme.dart';
 import 'score_annotation_canvas.dart';
 
 /// Floating Markup-style controls. Drawing and history remain in the reader.
@@ -29,7 +30,7 @@ class AnnotationPalette extends StatelessWidget {
   Widget build(BuildContext context) => Material(
     elevation: 12,
     shadowColor: Colors.black38,
-    color: const Color(0xFF777879),
+    color: WorshipFocusTheme.stagePanel,
     borderRadius: BorderRadius.circular(44),
     child: SizedBox(
       height: 88,

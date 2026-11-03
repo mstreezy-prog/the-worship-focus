@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../widgets/worship_focus_mark.dart';
 
 import '../controllers/library_controller.dart';
 import '../controllers/cloud_sync_controller.dart';
@@ -348,8 +349,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<LibraryRestoreMode?> _showRestoreLibraryDialog(LibraryBackup backup) {
-    final date = MaterialLocalizations.of(context)
-        .formatMediumDate(backup.createdAt.toLocal());
+    final date = MaterialLocalizations.of(
+      context,
+    ).formatMediumDate(backup.createdAt.toLocal());
     return showDialog<LibraryRestoreMode>(
       context: context,
       builder: (context) => AlertDialog(
@@ -592,7 +594,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 title: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('The Worship Focus'),
+                    const WorshipFocusMark(),
+                    const SizedBox(width: 10),
+                    const Flexible(
+                      child: Text(
+                        'The Worship Focus',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                     const SizedBox(width: 12),
                     _SaveStatus(
                       state: _controller.saveState,
