@@ -44,12 +44,29 @@ void main() {
     controller
       ..setLyricFontSize(22)
       ..setChordFontSize(26)
-      ..setNoteSize(15);
+      ..setNoteSize(15)
+      ..setChordColor(ScoreChordColor.blue);
     await Future<void>.delayed(Duration.zero);
 
     expect(store.saved!.lyricFontSize, 22);
     expect(store.saved!.chordFontSize, 26);
     expect(store.saved!.noteSize, 15);
+    expect(store.saved!.chordColor, ScoreChordColor.blue);
     controller.dispose();
+  });
+
+  test('older preferences default to black chords and preserve note size', () {
+    final preferences = ScoreDisplayPreferences.fromJson({'noteSize': 14});
+    expect(preferences.chordColor, ScoreChordColor.black);
+    expect(preferences.noteSize, 14);
+    final changed = preferences.copyWith(
+      chordColor: ScoreChordColor.burgundy,
+      chordFontSize: 32,
+    );
+    expect(changed.noteSize, 14);
+    expect(
+      ScoreDisplayPreferences.fromJson(changed.toJson()).chordColor,
+      ScoreChordColor.burgundy,
+    );
   });
 }

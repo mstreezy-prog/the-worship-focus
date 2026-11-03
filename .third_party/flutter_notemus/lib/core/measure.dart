@@ -5,6 +5,7 @@ import 'note.dart';
 import 'rest.dart';
 import 'time_signature.dart';
 import 'duration.dart';
+import 'space.dart';
 
 /// Represents a single bar of music containing an ordered list of
 /// [MusicalElement]s.
@@ -97,7 +98,7 @@ class Measure {
             'Attempting to add: $elementDuration units\n'
             'Total would be: $afterAdding units\n'
             'EXCESS: ${excess.toStringAsFixed(4)} units\n'
-            'OPERATION BLOCKED — Remove elements or create a new measure!'
+            'OPERATION BLOCKED — Remove elements or create a new measure!',
           );
         }
       }
@@ -112,9 +113,11 @@ class Measure {
     double total = 0.0;
     for (final element in elements) {
       if (element is Note) {
-        total += element.duration.realValue;
+        total += element.isGraceNote ? 0 : element.duration.realValue;
       } else if (element is Rest) {
         total += element.duration.realValue;
+      } else if (element is Space) {
+        total += element.realValue;
       } else if (element.runtimeType.toString() == 'Chord') {
         // Use reflection to avoid circular imports
         final dynamic chord = element;
@@ -122,28 +125,7 @@ class Measure {
           total += chord.duration.realValue;
         }
       } else if (element.runtimeType.toString() == 'Tuplet') {
-        // calculateTeste the tuplet value based on its ratio
-        final dynamic tuplet = element;
-        double tupletValue = 0.0;
-
-        // Sum the duration of all notes in the tuplet
-        for (final tupletElement in tuplet.elements) {
-          if (tupletElement is Note) {
-            tupletValue += tupletElement.duration.realValue;
-          } else if (tupletElement.runtimeType.toString() == 'Chord') {
-            final dynamic chord = tupletElement;
-            if (chord.duration != null) {
-              tupletValue += chord.duration.realValue;
-            }
-          }
-        }
-
-        // Apply the tuplet ratio (normalNotes / actualNotes)
-        if (tuplet.actualNotes > 0) {
-          tupletValue = tupletValue * (tuplet.normalNotes / tuplet.actualNotes);
-        }
-
-        total += tupletValue;
+        total += _getElementDuration(element);
       }
     }
     return total;
@@ -183,9 +165,11 @@ class Measure {
   /// calculateTestes the duration of a musical element (private helper).
   double _getElementDuration(MusicalElement element) {
     if (element is Note) {
-      return element.duration.realValue;
+      return element.isGraceNote ? 0 : element.duration.realValue;
     } else if (element is Rest) {
       return element.duration.realValue;
+    } else if (element is Space) {
+      return element.realValue;
     } else if (element.runtimeType.toString() == 'Chord') {
       final dynamic chord = element;
       return chord.duration?.realValue ?? 0.0;

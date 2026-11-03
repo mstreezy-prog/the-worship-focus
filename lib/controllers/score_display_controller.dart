@@ -30,6 +30,12 @@ class ScoreDisplayController extends ChangeNotifier {
     _update(_preferences.copyWith(chordFontSize: value));
   }
 
+  void setChordColor(ScoreChordColor value) {
+    _update(_preferences.copyWith(chordColor: value));
+  }
+
+  void setPreferences(ScoreDisplayPreferences value) => _update(value);
+
   void setNoteSize(double value) {
     _update(_preferences.copyWith(noteSize: value));
   }
@@ -39,6 +45,7 @@ class ScoreDisplayController extends ChangeNotifier {
   void _update(ScoreDisplayPreferences preferences) {
     if (_preferences.lyricFontSize == preferences.lyricFontSize &&
         _preferences.chordFontSize == preferences.chordFontSize &&
+        _preferences.chordColor == preferences.chordColor &&
         _preferences.noteSize == preferences.noteSize) {
       return;
     }

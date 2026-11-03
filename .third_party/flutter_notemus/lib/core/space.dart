@@ -16,7 +16,11 @@ class Space extends MusicalElement {
   /// Duração of the space (tempo that ocupa no measure).
   final Duration duration;
 
-  Space({required this.duration});
+  /// Exact duration of a MusicXML forward gap, in whole-note units.
+  final double? timingValue;
+  double get realValue => timingValue ?? duration.realValue;
+
+  Space({required this.duration, this.timingValue});
 }
 
 /// Representa a space de medida inteira (measure completo in siReadsncio),

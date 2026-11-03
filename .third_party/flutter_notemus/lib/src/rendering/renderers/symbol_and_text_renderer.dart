@@ -507,6 +507,11 @@ class SymbolAndTextRenderer {
       case TextType.tempo:
         baseStyle = _tempoTextStyle();
         break;
+      case TextType.chord:
+        baseStyle =
+            theme.chordTextStyle ??
+            TextStyle(fontSize: 22, fontWeight: FontWeight.w700);
+        break;
       case TextType.expression:
       case TextType.instruction:
       case TextType.dynamics:
@@ -567,6 +572,12 @@ class SymbolAndTextRenderer {
     switch (text.placement) {
       case TextPlacement.above:
         switch (text.type) {
+          case TextType.chord:
+            // Keep a dedicated chord lane above noteheads, stems and beams.
+            final fontSize = theme.chordTextStyle?.fontSize ?? 22;
+            return coordinates.getStaffLineY(5) -
+                coordinates.staffSpace * 3.5 -
+                fontSize / 2;
           case TextType.tempo:
             return _tempoMarkCenterY();
           case TextType.expression:
@@ -577,7 +588,8 @@ class SymbolAndTextRenderer {
           case TextType.rehearsal:
             // Section labels have their own lane above chord symbols.
             return coordinates.getStaffLineY(5) -
-                (coordinates.staffSpace * 4.75);
+                coordinates.staffSpace * 4.75 -
+                (theme.chordTextStyle?.fontSize ?? 22);
           default:
             return coordinates.getStaffLineY(5) -
                 (coordinates.staffSpace * 1.55);
@@ -720,7 +732,9 @@ class SymbolAndTextRenderer {
   }
 
   double _tempoMarkCenterY() {
-    return coordinates.getStaffLineY(5) - (coordinates.staffSpace * 1.95);
+    return coordinates.getStaffLineY(5) -
+        coordinates.staffSpace * 4.75 -
+        (theme.chordTextStyle?.fontSize ?? 22);
   }
 
   void renderBreath(Canvas canvas, Breath breath, Offset basePosition) {

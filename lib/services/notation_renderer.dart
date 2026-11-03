@@ -15,9 +15,7 @@ class NotationRenderer {
 
   /// Text treatments chosen for legibility on an iPad music stand.
   ///
-  /// MusicXML lyric elements use [lyricTextStyle]. Harmony labels are made
-  /// renderer-readable as MusicXML direction words, so they use the
-  /// expression style until the notation package natively supports harmony.
+  /// Harmony labels have a dedicated chord style, independent of score text.
   static const scoreTheme = MusicScoreTheme(
     lyricTextStyle: TextStyle(
       fontFamily: 'CMG Sans',
@@ -32,7 +30,7 @@ class NotationRenderer {
     ),
     chordTextStyle: TextStyle(
       fontFamily: 'CMG Sans',
-      fontSize: 19,
+      fontSize: 22,
       fontWeight: FontWeight.w700,
     ),
     rehearsalTextStyle: TextStyle(
@@ -48,11 +46,10 @@ class NotationRenderer {
       lyricTextStyle: scoreTheme.lyricTextStyle?.copyWith(
         fontSize: preferences.lyricFontSize,
       ),
-      expressionTextStyle: scoreTheme.expressionTextStyle?.copyWith(
-        fontSize: preferences.chordFontSize,
-      ),
+      expressionTextStyle: scoreTheme.expressionTextStyle,
       chordTextStyle: scoreTheme.chordTextStyle?.copyWith(
         fontSize: preferences.chordFontSize,
+        color: Color(preferences.chordColor.value),
       ),
       rehearsalTextStyle: scoreTheme.rehearsalTextStyle,
     );

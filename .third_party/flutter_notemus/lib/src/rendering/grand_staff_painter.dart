@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 // lib/src/rendering/grand_staff_painter.dart
 //
 // Multi-staff rendering for one or more [StaffGroup]s (grand staff, SATB, or a
@@ -55,15 +56,31 @@ class GrandStaffPainter extends CustomPainter {
   /// All staves across all groups, top to bottom.
   List<Staff> get _allStaves => [for (final g in groups) ...g.staves];
 
+  // The layout cursor, beam analyzer and painter must share this origin.
+  double get _extraChordHeight =>
+      math.max(0.0, (theme.chordTextStyle?.fontSize ?? 22) - 22);
+  double get staffBaseline => math.max(
+    staffSpace * 11.0 + _extraChordHeight,
+    staffSpace * 7.75 +
+        (theme.chordTextStyle?.fontSize ?? 22) +
+        (theme.rehearsalTextStyle?.fontSize ?? 18) / 2,
+  );
+
   /// Total painted height (all systems stacked).
   double get totalHeight =>
-      _systems.length * systemBlockHeight + staffSpace * 2.0;
+      math.max(0, _systems.length - 1) * systemBlockHeight +
+      (_allStaves.length - 1) * staffGap +
+      staffBaseline +
+      staffSpace * 5 +
+      (theme.lyricTextStyle?.fontSize ?? 17) +
+      staffSpace;
 
   /// Baseline-to-baseline distance between the tops of consecutive systems.
   double get systemBlockHeight =>
       (_allStaves.length - 1) * staffGap +
       staffSpace * 4.0 + // bottom staff lower half + margin
-      interSystemGap;
+      interSystemGap +
+      _extraChordHeight;
 
   GrandStaffPainter({
     StaffGroup? staffGroup,
@@ -106,6 +123,7 @@ class GrandStaffPainter extends CustomPainter {
       // Very wide so a system never wraps internally — breaks are decided here.
       availableWidth: (availableWidth - _bracePad) * 1000,
       staffSpace: staffSpace,
+      staffBaseline: staffBaseline,
       metadata: metadata,
     );
     final result = engine.layoutWithSignature();
@@ -118,30 +136,76 @@ class GrandStaffPainter extends CustomPainter {
   Staff _systemStaff(Staff staff, int a, int b) {
     Clef? clef;
     KeySignature? key;
+    TimeSignature? time;
     for (var i = 0; i < a && i < staff.measures.length; i++) {
       for (final e in staff.measures[i].elements) {
         if (e is Clef) clef = e;
         if (e is KeySignature) key = e;
+        if (e is TimeSignature) time = e;
       }
     }
+    List<MusicalElement> styled(Iterable<MusicalElement> elements) => [
+      for (final e in elements)
+        if (e is MusicText && e.type == TextType.chord)
+          MusicText(
+            text: e.text,
+            type: TextType.chord,
+            placement: e.placement,
+            fontFamily: e.fontFamily,
+            bold: e.bold,
+            italic: e.italic,
+            fontSize: theme.chordTextStyle?.fontSize ?? e.fontSize,
+          )
+        else
+          e,
+    ];
     final measures = <Measure>[];
     for (var i = a; i <= b && i < staff.measures.length; i++) {
-      final orig = staff.measures[i];
+      final original = staff.measures[i];
+      final prefix = <MusicalElement>[];
       if (i == a && a > 0) {
-        final m = Measure();
-        if (!orig.elements.any((e) => e is Clef) && clef != null) m.add(clef);
-        if (!orig.elements.any((e) => e is KeySignature) &&
+        if (!original.elements.any((e) => e is Clef) && clef != null)
+          prefix.add(clef);
+        if (!original.elements.any((e) => e is KeySignature) &&
             key != null &&
-            key.count != 0) {
-          m.add(key);
-        }
-        for (final e in orig.elements) {
-          m.add(e);
-        }
-        measures.add(m);
-      } else {
-        measures.add(orig);
+            key.count != 0)
+          prefix.add(key);
       }
+      final Measure copy;
+      if (original is MultiVoiceMeasure) {
+        final multi = MultiVoiceMeasure();
+        for (final voice in original.sortedVoices) {
+          multi.addVoice(
+            Voice(
+              number: voice.number,
+              name: voice.name,
+              forcedStemDirection: voice.forcedStemDirection,
+              horizontalOffset: voice.horizontalOffset,
+              color: voice.color,
+              elements: [
+                ...(voice == original.sortedVoices.first
+                    ? prefix
+                    : <MusicalElement>[]),
+                ...styled(voice.elements),
+              ],
+            ),
+          );
+        }
+        copy = multi;
+      } else {
+        copy = Measure();
+      }
+      // Copy metadata without re-validating or changing the source durations.
+      copy.elements.addAll([...prefix, ...styled(original.elements)]);
+      copy.autoBeaming = original.autoBeaming;
+      copy.beamingMode = original.beamingMode;
+      copy.manualBeamGroups = original.manualBeamGroups;
+      copy.inheritedTimeSignature = original.inheritedTimeSignature ?? time;
+      copy.number = original.number;
+      for (final element in original.elements) {
+        if (element is TimeSignature) time = element;
+      }
+      measures.add(copy);
     }
     return Staff(measures: measures);
   }
@@ -149,9 +213,10 @@ class GrandStaffPainter extends CustomPainter {
   /// Per-measure widths laid out unwrapped, used to decide shared breaks.
   List<double> _measureWidths(Staff staff) {
     final engine = LayoutEngine(
-      staff,
+      _systemStaff(staff, 0, staff.measures.length - 1),
       availableWidth: 1000000,
       staffSpace: staffSpace,
+      staffBaseline: staffBaseline,
       metadata: metadata,
     );
     final els = engine.layout();
@@ -286,11 +351,35 @@ class GrandStaffPainter extends CustomPainter {
         // Keep the engine's note-X map (used by beams) in sync.
         if (pe.element is Note) {
           layouts[s].engine.overrideNoteX(pe.element as Note, nx);
+        } else if (pe.element is Chord) {
+          for (final note in (pe.element as Chord).notes) {
+            layouts[s].engine.overrideNoteX(note, nx);
+          }
         }
       }
       layouts[s] = _StaffLayout(remapped, layouts[s].engine);
     }
   }
+
+  /// Layout diagnostics for regression checks and score inspection.
+  List<
+    ({
+      int system,
+      int staff,
+      List<PositionedElement> elements,
+      LayoutEngine engine,
+    })
+  >
+  get layoutDiagnostics => [
+    for (var system = 0; system < _systems.length; system++)
+      for (var staff = 0; staff < _systems[system].length; staff++)
+        (
+          system: system,
+          staff: staff,
+          elements: List.unmodifiable(_systems[system][staff].elements),
+          engine: _systems[system][staff].engine,
+        ),
+  ];
 
   // --- Painting -------------------------------------------------------------
 
@@ -302,7 +391,7 @@ class GrandStaffPainter extends CustomPainter {
     canvas.translate(_bracePad, 0);
 
     // Reserve a clear top lane for rehearsal marks above chord symbols.
-    final baseline0 = staffSpace * 11.0;
+    final baseline0 = staffBaseline;
     for (var sysIdx = 0; sysIdx < _systems.length; sysIdx++) {
       final layouts = _systems[sysIdx];
       if (layouts.isEmpty) continue;

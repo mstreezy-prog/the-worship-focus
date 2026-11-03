@@ -106,7 +106,7 @@ void main() {
     );
 
     expect(theme.lyricTextStyle?.fontSize, 23);
-    expect(theme.expressionTextStyle?.fontSize, 27);
+    expect(theme.expressionTextStyle?.fontSize, 19);
     expect(theme.chordTextStyle?.fontSize, 27);
     expect(theme.rehearsalTextStyle?.fontSize, 18);
   });

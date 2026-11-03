@@ -34,7 +34,7 @@ class MusicXmlDisplayTransformer {
           if (text == null) continue;
           final index = measure.children.indexOf(harmony);
           if (index == -1) continue;
-          measure.children.insert(index, _chordDirection(text));
+          measure.children.insert(index, _chordDirection(text, harmony));
           changed = true;
         }
       }
@@ -115,7 +115,7 @@ class MusicXmlDisplayTransformer {
     };
   }
 
-  static XmlElement _chordDirection(String text) {
+  static XmlElement _chordDirection(String text, XmlElement harmony) {
     final builder = XmlBuilder();
     builder.element(
       'direction',
@@ -126,13 +126,18 @@ class MusicXmlDisplayTransformer {
           nest: () {
             builder.element(
               'words',
-              attributes: {'font-weight': 'bold'},
+              attributes: {'font-weight': 'bold', 'data-twf-harmony': 'true'},
               nest: text,
             );
           },
         );
       },
     );
-    return builder.buildFragment().children.single as XmlElement;
+    final direction = builder.buildFragment().children.single as XmlElement;
+    for (final name in ['offset', 'staff']) {
+      final value = harmony.getElement(name);
+      if (value != null) direction.children.add(value.copy());
+    }
+    return direction;
   }
 }

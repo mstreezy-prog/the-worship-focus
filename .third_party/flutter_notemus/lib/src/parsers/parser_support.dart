@@ -1,3 +1,4 @@
+import '../../core/musicxml_duration.dart';
 import 'dart:convert';
 
 import 'package:xml/xml.dart';
@@ -1156,6 +1157,13 @@ class _JsonImportParser {
 }
 
 class _MusicXmlImportParser {
+  double _divisions = 1;
+  TimeSignature? _timeSignature;
+  void _resetTiming() {
+    _divisions = 1;
+    _timeSignature = null;
+  }
+
   _MusicXmlImportParser({required this.partIndex});
 
   final int partIndex;
@@ -1201,25 +1209,31 @@ class _MusicXmlImportParser {
         for (var s = 1; s <= count; s++) {
           final filter = count == 1 ? null : s;
           final staff = Staff();
+          _resetTiming();
           for (final m in part.findElements('measure')) {
             staff.add(_parseMeasure(m, staffFilter: filter));
           }
           partStaves.add(staff);
         }
-        partsData.add(
-          (id: part.getAttribute('id'), staves: partStaves, count: count),
-        );
+        partsData.add((
+          id: part.getAttribute('id'),
+          staves: partStaves,
+          count: count,
+        ));
       }
       // Group consecutive parts that share a <part-group>.
       var i = 0;
       while (i < partsData.length) {
         final gid = partList.groupOf[partsData[i].id];
         if (gid == null) {
-          groups.add(StaffGroup(
-            staves: partsData[i].staves,
-            bracket:
-                partsData[i].count > 1 ? BracketType.brace : BracketType.none,
-          ));
+          groups.add(
+            StaffGroup(
+              staves: partsData[i].staves,
+              bracket: partsData[i].count > 1
+                  ? BracketType.brace
+                  : BracketType.none,
+            ),
+          );
           i++;
         } else {
           final staves = <Staff>[];
@@ -1228,10 +1242,12 @@ class _MusicXmlImportParser {
             staves.addAll(partsData[i].staves);
             i++;
           }
-          groups.add(StaffGroup(
-            staves: staves,
-            bracket: partList.bracket[gid] ?? BracketType.bracket,
-          ));
+          groups.add(
+            StaffGroup(
+              staves: staves,
+              bracket: partList.bracket[gid] ?? BracketType.bracket,
+            ),
+          );
         }
       }
     } else {
@@ -1247,6 +1263,7 @@ class _MusicXmlImportParser {
       }
       for (var p = 0; p < partCount; p++) {
         final staff = Staff();
+        _resetTiming();
         for (final m in partMeasures[p] ?? const <XmlElement>[]) {
           staff.add(_parseMeasure(m));
         }
@@ -1278,8 +1295,12 @@ class _MusicXmlImportParser {
     for (final note in measureElement.findElements('note')) {
       final staff = _asInt(_childText(note, 'staff')) ?? 1;
       final voice = _asInt(_childText(note, 'voice')) ?? 1;
-      final beam =
-          note.findElements('beam').firstOrNull?.innerText.trim().toLowerCase();
+      final beam = note
+          .findElements('beam')
+          .firstOrNull
+          ?.innerText
+          .trim()
+          .toLowerCase();
       int home;
       if (beam == 'begin') {
         groupHome[voice] = staff;
@@ -1314,8 +1335,7 @@ class _MusicXmlImportParser {
       switch (child.name.local) {
         case 'part-group':
           final type = child.getAttribute('type');
-          final number =
-              int.tryParse(child.getAttribute('number') ?? '1') ?? 1;
+          final number = int.tryParse(child.getAttribute('number') ?? '1') ?? 1;
           if (type == 'start') {
             final id = nextId++;
             bracket[id] = _groupSymbolBracket(
@@ -1405,12 +1425,16 @@ class _MusicXmlImportParser {
   Measure _parseMeasure(XmlElement measureElement, {int? staffFilter}) {
     final Map<int, _VoiceAccumulator> voices = <int, _VoiceAccumulator>{};
     final List<MusicalElement> metadataElements = <MusicalElement>[];
-    TimeSignature? currentTimeSignature;
+    TimeSignature? currentTimeSignature = _timeSignature;
+    var position = 0.0;
+    var previousOnset = 0.0;
+    final voiceEnds = <int, double>{};
     // Cross-staff routing (multi-staff parts only): a beamed voice whose notes
     // change <staff> mid-beam is kept on its home (beam-start) staff with a
     // crossStaffMove so the beam survives.
-    final crossStaff =
-        staffFilter != null ? _crossStaffMap(measureElement) : null;
+    final crossStaff = staffFilter != null
+        ? _crossStaffMap(measureElement)
+        : null;
 
     _VoiceAccumulator voice(int number) {
       return voices.putIfAbsent(number, () => _VoiceAccumulator(number));
@@ -1423,14 +1447,27 @@ class _MusicXmlImportParser {
       }
       if (element is TimeSignature) {
         currentTimeSignature = element;
+        _timeSignature = element;
       }
     }
 
     for (final child in measureElement.children.whereType<XmlElement>()) {
       switch (child.name.local) {
         case 'attributes':
-          for (final element
-              in _parseMusicXmlAttributes(child, staffFilter: staffFilter)) {
+          final divisions = double.tryParse(
+            _childText(child, 'divisions') ?? '',
+          );
+          if (divisions != null) {
+            if (divisions <= 0)
+              throw const FormatException(
+                'MusicXML divisions must be positive.',
+              );
+            _divisions = divisions;
+          }
+          for (final element in _parseMusicXmlAttributes(
+            child,
+            staffFilter: staffFilter,
+          )) {
             appendLeadElement(element);
           }
           break;
@@ -1445,6 +1482,31 @@ class _MusicXmlImportParser {
           }
           break;
         case 'note':
+          final isChord = child.findElements('chord').isNotEmpty;
+          final isGrace = child.findElements('grace').isNotEmpty;
+          final duration = _musicXmlDurationFromNote(
+            child,
+            divisions: _divisions,
+            timeSignature: currentTimeSignature,
+          );
+          final ticks = double.tryParse(_childText(child, 'duration') ?? '');
+          final modification = child.getElement('time-modification');
+          final actual =
+              double.tryParse(_childText(modification, 'actual-notes') ?? '') ??
+              1;
+          final normal =
+              double.tryParse(_childText(modification, 'normal-notes') ?? '') ??
+              1;
+          final span = isGrace
+              ? 0.0
+              : ticks != null
+              ? ticks / _divisions / 4
+              : duration.realValue * normal / actual;
+          final onset = isChord ? previousOnset : position;
+          if (!isChord) {
+            previousOnset = position;
+            position += span;
+          }
           var move = 0;
           if (staffFilter != null) {
             final cs = crossStaff![child];
@@ -1455,33 +1517,96 @@ class _MusicXmlImportParser {
             if (home != staffFilter) break;
             move = cs?.move ?? 0;
           }
+          final number = _asInt(_childText(child, 'voice')) ?? 1;
+          if (!isChord && !isGrace) {
+            final end = voiceEnds[number] ?? 0;
+            if (onset < end - 0.000001) {
+              throw FormatException(
+                'Overlapping MusicXML events in voice $number; check backup and voice labels.',
+              );
+            }
+            if (onset > end + 0.000001) {
+              final accumulator = voice(number);
+              final tuplet = accumulator.activeTuplet;
+              final ratio = tuplet == null
+                  ? 1.0
+                  : tuplet.normalNotes / tuplet.actualNotes;
+              accumulator.append(
+                Space(
+                  duration: const Duration(DurationType.quarter),
+                  timingValue: (onset - end) / ratio,
+                ),
+              );
+            }
+            voiceEnds[number] = onset + span;
+          }
+          if (child.getAttribute('print-object') == 'no') {
+            if (!isChord && !isGrace)
+              voice(
+                number,
+              ).append(Space(duration: duration, timingValue: span));
+            break;
+          }
           _parseMusicXmlNoteNode(
             child,
+            duration: duration,
             voiceForNumber: voice,
             currentTimeSignature: currentTimeSignature,
             crossStaffMove: move,
           );
           break;
         case 'backup':
+          position -=
+              (double.tryParse(_childText(child, 'duration') ?? '') ?? 0) /
+              _divisions /
+              4;
+          if (position < -0.000001)
+            throw const FormatException(
+              'MusicXML backup crosses a measure boundary.',
+            );
+          if (position < 0) position = 0;
+          break;
         case 'forward':
+          position +=
+              (double.tryParse(_childText(child, 'duration') ?? '') ?? 0) /
+              _divisions /
+              4;
           break;
       }
     }
 
-    if (voices.isEmpty || (voices.length == 1 && !voices.containsKey(2))) {
-      final measure = Measure();
-      for (final element in voice(1).elements) {
+    for (final accumulator in voices.values) {
+      accumulator.finishTuplet();
+    }
+    final rhythmicVoices = voices.values
+        .where(
+          (v) => v.elements.any((e) => _isRhythmicElement(e) || e is Space),
+        )
+        .toList();
+    final metadataOnly = voices[1];
+    if (rhythmicVoices.isNotEmpty &&
+        !rhythmicVoices.contains(metadataOnly) &&
+        metadataOnly != null) {
+      rhythmicVoices.first.elements.insertAll(0, metadataOnly.elements);
+    }
+    if (rhythmicVoices.length <= 1) {
+      final measure = Measure(inheritedTimeSignature: currentTimeSignature);
+      for (final element
+          in rhythmicVoices.firstOrNull?.elements ??
+              metadataOnly?.elements ??
+              <MusicalElement>[]) {
         _appendElementToMeasure(measure, element);
       }
       return measure;
     }
 
-    final measure = MultiVoiceMeasure();
+    final measure = MultiVoiceMeasure()
+      ..inheritedTimeSignature = currentTimeSignature;
     for (final element in metadataElements.where(_isSystemElement)) {
       _appendElementToMeasure(measure, element);
     }
 
-    final voiceNumbers = voices.keys.toList()..sort();
+    final voiceNumbers = rhythmicVoices.map((v) => v.number).toList()..sort();
     for (final number in voiceNumbers) {
       final accumulator = voices[number]!;
       accumulator.finishTuplet();
@@ -1492,6 +1617,7 @@ class _MusicXmlImportParser {
 
   void _parseMusicXmlNoteNode(
     XmlElement noteElement, {
+    required Duration duration,
     required _VoiceAccumulator Function(int number) voiceForNumber,
     required TimeSignature? currentTimeSignature,
     int crossStaffMove = 0,
@@ -1499,7 +1625,6 @@ class _MusicXmlImportParser {
     final int voiceNumber = _asInt(_childText(noteElement, 'voice')) ?? 1;
     final accumulator = voiceForNumber(voiceNumber);
     final bool isChordTone = noteElement.findElements('chord').isNotEmpty;
-    final duration = _musicXmlDurationFromNote(noteElement);
     final bool isGrace = noteElement.findElements('grace').isNotEmpty;
 
     MusicalElement? baseElement;
@@ -1558,8 +1683,10 @@ class _MusicXmlImportParser {
   }
 }
 
-List<MusicalElement> _parseMusicXmlAttributes(XmlElement attributesElement,
-    {int? staffFilter}) {
+List<MusicalElement> _parseMusicXmlAttributes(
+  XmlElement attributesElement, {
+  int? staffFilter,
+}) {
   final List<MusicalElement> result = <MusicalElement>[];
 
   for (final child in attributesElement.children.whereType<XmlElement>()) {
@@ -1590,6 +1717,12 @@ List<MusicalElement> _parseMusicXmlAttributes(XmlElement attributesElement,
     }
   }
 
+  int order(MusicalElement e) => e is Clef
+      ? 0
+      : e is KeySignature
+      ? 1
+      : 2;
+  result.sort((a, b) => order(a).compareTo(order(b)));
   return result;
 }
 
@@ -1613,7 +1746,14 @@ List<MusicalElement> _parseMusicXmlDirections(XmlElement directionElement) {
           if (repeatType != null) {
             result.add(RepeatMark(type: repeatType, label: text));
           } else {
-            result.add(MusicText(text: text, type: TextType.expression));
+            result.add(
+              MusicText(
+                text: text,
+                type: child.getAttribute('data-twf-harmony') == 'true'
+                    ? TextType.chord
+                    : TextType.expression,
+              ),
+            );
           }
           break;
         case 'metronome':
@@ -1806,10 +1946,31 @@ Pitch? _musicXmlPitch(XmlElement noteElement) {
   );
 }
 
-Duration _musicXmlDurationFromNote(XmlElement noteElement) {
-  return Duration(
-    _parseDurationType(_childText(noteElement, 'type')) ?? DurationType.quarter,
-    dots: noteElement.findElements('dot').length,
+Duration _musicXmlDurationFromNote(
+  XmlElement noteElement, {
+  required double divisions,
+  TimeSignature? timeSignature,
+}) {
+  final type = _parseDurationType(_childText(noteElement, 'type'));
+  if (type != null)
+    return Duration(type, dots: noteElement.findElements('dot').length);
+  if (noteElement.findElements('grace').isNotEmpty)
+    return const Duration(DurationType.eighth);
+  final ticks = double.tryParse(_childText(noteElement, 'duration') ?? '');
+  if (ticks != null) {
+    final modification = noteElement.getElement('time-modification');
+    final actual =
+        double.tryParse(_childText(modification, 'actual-notes') ?? '') ?? 1;
+    final normal =
+        double.tryParse(_childText(modification, 'normal-notes') ?? '') ?? 1;
+    return musicXmlDurationFromValue(ticks / divisions / 4 * actual / normal);
+  }
+  if (noteElement.getElement('rest')?.getAttribute('measure') == 'yes' &&
+      timeSignature != null) {
+    return musicXmlDurationFromValue(timeSignature.measureValue);
+  }
+  throw const FormatException(
+    'MusicXML note has neither a note type nor a duration.',
   );
 }
 
@@ -2061,8 +2222,9 @@ class _MeiImportParser {
           if (startId != null) {
             final d = _parseDynamicType(ev.innerText.trim());
             if (d != null) {
-              (_afterNoteById[startId] ??= <MusicalElement>[])
-                  .add(Dynamic(type: d));
+              (_afterNoteById[startId] ??= <MusicalElement>[]).add(
+                Dynamic(type: d),
+              );
             }
           }
           break;
@@ -2085,16 +2247,19 @@ class _MeiImportParser {
     // MEI encodes the initial clef/key/meter in <scoreDef>/<staffDef>, not
     // inline in <staff>. Capture them and seed the first measure.
     final scoreDef = score.findAllElements('scoreDef').firstOrNull;
-    final defaults =
-        scoreDef == null ? const <MusicalElement>[] : _meiStaffDefaults(scoreDef);
+    final defaults = scoreDef == null
+        ? const <MusicalElement>[]
+        : _meiStaffDefaults(scoreDef);
 
     final staff = Staff();
     var first = true;
     for (final measure in section.findElements('measure')) {
-      staff.add(_parseMeasure(
-        measure,
-        leadingDefaults: first ? defaults : const <MusicalElement>[],
-      ));
+      staff.add(
+        _parseMeasure(
+          measure,
+          leadingDefaults: first ? defaults : const <MusicalElement>[],
+        ),
+      );
       first = false;
     }
     return staff;
@@ -2111,9 +2276,7 @@ class _MeiImportParser {
         break;
       }
     }
-    sd ??= defs.isNotEmpty
-        ? defs[staffIndex.clamp(0, defs.length - 1)]
-        : null;
+    sd ??= defs.isNotEmpty ? defs[staffIndex.clamp(0, defs.length - 1)] : null;
     final result = <MusicalElement>[];
     final clef = (sd != null ? _meiDefClef(sd) : null) ?? _meiDefClef(scoreDef);
     if (clef != null) result.add(clef);
@@ -2169,8 +2332,9 @@ class _MeiImportParser {
     // Seed the first measure with the scoreDef/staffDef clef/key/meter, unless
     // the staff redeclares that element type inline.
     if (leadingDefaults.isNotEmpty) {
-      final inlineNames =
-          staffElement.children.whereType<XmlElement>().map((e) => e.name.local);
+      final inlineNames = staffElement.children.whereType<XmlElement>().map(
+        (e) => e.name.local,
+      );
       final hasClef = inlineNames.contains('clef');
       final hasKey = inlineNames.contains('keySig');
       final hasMeter = inlineNames.contains('meterSig');
@@ -2325,152 +2489,160 @@ class _MeiImportParser {
     TimeSignature? currentTimeSignature, {
     BeamType? beamOverride,
   }) {
-      switch (child.name.local) {
-        case 'beam':
-          // Position-based beam types over the beamable (note/chord) children.
-          final kids = child.children.whereType<XmlElement>().toList();
-          final beamable = kids
-              .where((e) => e.name.local == 'note' || e.name.local == 'chord')
-              .length;
-          var bi = 0;
-          for (final inner in kids) {
-            final isBeamable =
-                inner.name.local == 'note' || inner.name.local == 'chord';
-            BeamType? bo;
-            if (isBeamable && beamable > 1) {
-              bo = bi == 0
-                  ? BeamType.start
-                  : (bi == beamable - 1 ? BeamType.end : BeamType.inner);
-              bi++;
-            }
-            _appendMeiChild(inner, accumulator, voiceNumber,
-                currentTimeSignature,
-                beamOverride: bo);
+    switch (child.name.local) {
+      case 'beam':
+        // Position-based beam types over the beamable (note/chord) children.
+        final kids = child.children.whereType<XmlElement>().toList();
+        final beamable = kids
+            .where((e) => e.name.local == 'note' || e.name.local == 'chord')
+            .length;
+        var bi = 0;
+        for (final inner in kids) {
+          final isBeamable =
+              inner.name.local == 'note' || inner.name.local == 'chord';
+          BeamType? bo;
+          if (isBeamable && beamable > 1) {
+            bo = bi == 0
+                ? BeamType.start
+                : (bi == beamable - 1 ? BeamType.end : BeamType.inner);
+            bi++;
           }
-          return;
-        case 'tuplet':
+          _appendMeiChild(
+            inner,
+            accumulator,
+            voiceNumber,
+            currentTimeSignature,
+            beamOverride: bo,
+          );
+        }
+        return;
+      case 'tuplet':
+        accumulator.startTuplet(
+          actualNotes: _asInt(child.getAttribute('num')) ?? 3,
+          normalNotes: _asInt(child.getAttribute('numbase')) ?? 2,
+          timeSignature: currentTimeSignature,
+        );
+        for (final inner in child.children.whereType<XmlElement>()) {
+          _appendMeiChild(
+            inner,
+            accumulator,
+            voiceNumber,
+            currentTimeSignature,
+          );
+        }
+        accumulator.finishTuplet();
+        return;
+      case 'note':
+        final noteId = child.getAttribute('xml:id');
+        final note = _meiNote(
+          child,
+          voiceNumber: voiceNumber,
+          beamOverride: beamOverride,
+          slurOverride: noteId == null ? null : _slurById[noteId],
+          tieOverride: noteId == null ? null : _tieById[noteId],
+        );
+        if (note == null) return;
+        final tupletInfo = _meiTupletInfo(child);
+        if (tupletInfo.startsTuplet) {
           accumulator.startTuplet(
-            actualNotes: _asInt(child.getAttribute('num')) ?? 3,
-            normalNotes: _asInt(child.getAttribute('numbase')) ?? 2,
+            actualNotes: tupletInfo.actualNotes,
+            normalNotes: tupletInfo.normalNotes,
             timeSignature: currentTimeSignature,
           );
-          for (final inner in child.children.whereType<XmlElement>()) {
-            _appendMeiChild(
-                inner, accumulator, voiceNumber, currentTimeSignature);
+        }
+        accumulator.append(note);
+        // Control events (e.g. <dynam startid>) anchored to this note.
+        if (noteId != null) {
+          for (final extra in _afterNoteById[noteId] ?? const []) {
+            accumulator.append(extra);
           }
+        }
+        if (tupletInfo.endsTuplet) {
           accumulator.finishTuplet();
-          return;
-        case 'note':
-          final noteId = child.getAttribute('xml:id');
-          final note = _meiNote(child,
-              voiceNumber: voiceNumber,
-              beamOverride: beamOverride,
-              slurOverride: noteId == null ? null : _slurById[noteId],
-              tieOverride: noteId == null ? null : _tieById[noteId]);
-          if (note == null) return;
-          final tupletInfo = _meiTupletInfo(child);
-          if (tupletInfo.startsTuplet) {
-            accumulator.startTuplet(
-              actualNotes: tupletInfo.actualNotes,
-              normalNotes: tupletInfo.normalNotes,
-              timeSignature: currentTimeSignature,
-            );
-          }
-          accumulator.append(note);
-          // Control events (e.g. <dynam startid>) anchored to this note.
-          if (noteId != null) {
-            for (final extra in _afterNoteById[noteId] ?? const []) {
-              accumulator.append(extra);
-            }
-          }
-          if (tupletInfo.endsTuplet) {
-            accumulator.finishTuplet();
-          }
-          return;
-        case 'rest':
-          final rest = _meiRest(child);
-          final tupletInfo = _meiTupletInfo(child);
-          if (tupletInfo.startsTuplet) {
-            accumulator.startTuplet(
-              actualNotes: tupletInfo.actualNotes,
-              normalNotes: tupletInfo.normalNotes,
-              timeSignature: currentTimeSignature,
-            );
-          }
-          accumulator.append(rest);
-          if (tupletInfo.endsTuplet) {
-            accumulator.finishTuplet();
-          }
-          break;
-        case 'chord':
-          final chord = _meiChord(child, voiceNumber: voiceNumber);
-          if (chord == null) return;
-          final tupletInfo = _meiTupletInfo(child);
-          if (tupletInfo.startsTuplet) {
-            accumulator.startTuplet(
-              actualNotes: tupletInfo.actualNotes,
-              normalNotes: tupletInfo.normalNotes,
-              timeSignature: currentTimeSignature,
-            );
-          }
-          accumulator.append(chord);
-          if (tupletInfo.endsTuplet) {
-            accumulator.finishTuplet();
-          }
-          break;
-        case 'dynam':
-          accumulator.append(
-            Dynamic(
-              type: _parseDynamicType(child.innerText.trim()) ?? DynamicType.mf,
-            ),
+        }
+        return;
+      case 'rest':
+        final rest = _meiRest(child);
+        final tupletInfo = _meiTupletInfo(child);
+        if (tupletInfo.startsTuplet) {
+          accumulator.startTuplet(
+            actualNotes: tupletInfo.actualNotes,
+            normalNotes: tupletInfo.normalNotes,
+            timeSignature: currentTimeSignature,
           );
-          break;
-        case 'tempo':
-          accumulator.append(
-            TempoMark(
-              beatUnit:
-                  _parseDurationType(child.getAttribute('unit')) ??
-                  DurationType.quarter,
-              bpm: _asInt(
-                child.getAttribute('mm') ?? child.getAttribute('midi.bpm'),
-              ),
-              text: child.innerText.trim().isEmpty
-                  ? null
-                  : child.innerText.trim(),
-            ),
+        }
+        accumulator.append(rest);
+        if (tupletInfo.endsTuplet) {
+          accumulator.finishTuplet();
+        }
+        break;
+      case 'chord':
+        final chord = _meiChord(child, voiceNumber: voiceNumber);
+        if (chord == null) return;
+        final tupletInfo = _meiTupletInfo(child);
+        if (tupletInfo.startsTuplet) {
+          accumulator.startTuplet(
+            actualNotes: tupletInfo.actualNotes,
+            normalNotes: tupletInfo.normalNotes,
+            timeSignature: currentTimeSignature,
           );
-          break;
-        case 'dir':
-          final text = child.innerText.trim();
-          if (text.isEmpty) return;
-          final repeatType = _parseRepeatType(text);
-          if (repeatType != null) {
-            accumulator.append(RepeatMark(type: repeatType, label: text));
-          } else {
-            accumulator.append(
-              MusicText(text: text, type: TextType.expression),
-            );
-          }
-          break;
-        case 'breath':
-          accumulator.append(Breath(type: BreathType.comma));
-          break;
-        case 'caesura':
-          accumulator.append(Caesura());
-          break;
-        case 'repeatMark':
-          final repeatMark = _meiRepeatMark(child);
-          if (repeatMark != null) {
-            accumulator.append(repeatMark);
-          }
-          break;
-        case 'barLine':
-          final barline = _meiBarline(child);
-          if (barline != null) {
-            accumulator.append(barline);
-          }
-          break;
-      }
+        }
+        accumulator.append(chord);
+        if (tupletInfo.endsTuplet) {
+          accumulator.finishTuplet();
+        }
+        break;
+      case 'dynam':
+        accumulator.append(
+          Dynamic(
+            type: _parseDynamicType(child.innerText.trim()) ?? DynamicType.mf,
+          ),
+        );
+        break;
+      case 'tempo':
+        accumulator.append(
+          TempoMark(
+            beatUnit:
+                _parseDurationType(child.getAttribute('unit')) ??
+                DurationType.quarter,
+            bpm: _asInt(
+              child.getAttribute('mm') ?? child.getAttribute('midi.bpm'),
+            ),
+            text: child.innerText.trim().isEmpty
+                ? null
+                : child.innerText.trim(),
+          ),
+        );
+        break;
+      case 'dir':
+        final text = child.innerText.trim();
+        if (text.isEmpty) return;
+        final repeatType = _parseRepeatType(text);
+        if (repeatType != null) {
+          accumulator.append(RepeatMark(type: repeatType, label: text));
+        } else {
+          accumulator.append(MusicText(text: text, type: TextType.expression));
+        }
+        break;
+      case 'breath':
+        accumulator.append(Breath(type: BreathType.comma));
+        break;
+      case 'caesura':
+        accumulator.append(Caesura());
+        break;
+      case 'repeatMark':
+        final repeatMark = _meiRepeatMark(child);
+        if (repeatMark != null) {
+          accumulator.append(repeatMark);
+        }
+        break;
+      case 'barLine':
+        final barline = _meiBarline(child);
+        if (barline != null) {
+          accumulator.append(barline);
+        }
+        break;
+    }
   }
 }
 
@@ -2487,8 +2659,7 @@ Clef? _meiDefClef(XmlElement def) {
   final s = _normalizeToken(shape);
   if (s == 'g') return Clef(clefType: ClefType.treble);
   if (s == 'f') {
-    return Clef(
-        clefType: line == 3 ? ClefType.bassThirdLine : ClefType.bass);
+    return Clef(clefType: line == 3 ? ClefType.bassThirdLine : ClefType.bass);
   }
   if (s == 'c') {
     return Clef(
@@ -2628,11 +2799,13 @@ TimeSignature? _meiTimeSignature(XmlElement meterSigElement) {
   return TimeSignature(numerator: numerator, denominator: denominator);
 }
 
-Note? _meiNote(XmlElement noteElement,
-    {required int voiceNumber,
-    BeamType? beamOverride,
-    SlurType? slurOverride,
-    TieType? tieOverride}) {
+Note? _meiNote(
+  XmlElement noteElement, {
+  required int voiceNumber,
+  BeamType? beamOverride,
+  SlurType? slurOverride,
+  TieType? tieOverride,
+}) {
   final step = noteElement.getAttribute('pname')?.toUpperCase();
   final octave = _asInt(noteElement.getAttribute('oct'));
   if (step == null || octave == null) return null;

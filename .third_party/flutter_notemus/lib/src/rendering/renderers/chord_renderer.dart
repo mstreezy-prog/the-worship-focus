@@ -145,6 +145,8 @@ class ChordRenderer extends BaseGlyphRenderer {
     Offset basePosition,
     Clef currentClef, {
     int? voiceNumber,
+    bool renderOnlyNoteheads = false,
+    bool renderUngroupedBeam = false,
     Map<Note, AccidentalDisplay>? accidentalDecisions,
   }) {
     // Effective accidental glyph for a chord note after within-measure
@@ -159,6 +161,7 @@ class ChordRenderer extends BaseGlyphRenderer {
           return n.pitch.accidentalGlyph;
       }
     }
+
     final sortedNotes = [...chord.notes]
       ..sort(
         (a, b) => StaffPositionCalculator.calculate(
@@ -227,10 +230,7 @@ class ChordRenderer extends BaseGlyphRenderer {
     ];
     final assignedColumns = assignAccidentalColumns(
       [for (final i in accIdx) positions[i]],
-      [
-        for (final i in accIdx)
-          accClearanceHalfSpaces(effAcc(sortedNotes[i])!),
-      ],
+      [for (final i in accIdx) accClearanceHalfSpaces(effAcc(sortedNotes[i])!)],
     );
 
     final accidentalColumns = <int, int>{}; // note index -> column
@@ -253,8 +253,7 @@ class ChordRenderer extends BaseGlyphRenderer {
     // each further column is offset left by the previous column's glyph width.
     if (accidentalColumns.isNotEmpty) {
       const columnGapSpaces = 0.22;
-      final leftmostNoteDx =
-          basePosition.dx + clusterOffsets.reduce(math.min);
+      final leftmostNoteDx = basePosition.dx + clusterOffsets.reduce(math.min);
       final maxColumn = columnMembers.keys.reduce(math.max);
       final columnLeftX = <int, double>{};
       var cursorRightEdge =
@@ -324,7 +323,9 @@ class ChordRenderer extends BaseGlyphRenderer {
       );
     }
 
-    if (chord.duration.type != DurationType.whole && positions.isNotEmpty) {
+    if (!renderOnlyNoteheads &&
+        chord.duration.type != DurationType.whole &&
+        positions.isNotEmpty) {
       final stemNoteIndex = stemUp ? positions.length - 1 : 0;
       final stemY = StaffPositionCalculator.toPixelY(
         positions[stemNoteIndex],
@@ -347,7 +348,8 @@ class ChordRenderer extends BaseGlyphRenderer {
         customStemLength,
       );
 
-      if (chord.duration.type.value < 0.25 && chord.beam == null) {
+      if (chord.duration.type.value < 0.25 &&
+          (chord.beam == null || renderUngroupedBeam)) {
         noteRenderer.flagRenderer.render(
           canvas,
           stemEnd,

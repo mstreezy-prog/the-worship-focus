@@ -64,6 +64,13 @@ class GroupRenderer {
     return groups;
   }
 
+  Set<Note> notesWithBeams(List<PositionedElement> elements) => {
+    for (final group in _identifyBeamGroups(elements).values)
+      if (group.length >= 2)
+        for (final index in group)
+          if (elements[index].element is Note) elements[index].element as Note,
+  };
+
   void renderBeams(
     Canvas canvas,
     List<PositionedElement> elements,

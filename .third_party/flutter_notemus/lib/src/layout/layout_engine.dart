@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 // lib/src/layout/layout_engine.dart
 // Corrected implementation: Spacing melhorado and beaming corrigido
 // Suporte a Hierarchical BoundingBox added
@@ -80,13 +81,12 @@ class LayoutCursor {
     required this.availableWidth,
     required this.systemMargin,
     this.systemHeight = 10.0,
+    double? staffBaseline,
     this.noteXPositions,
     this.noteStaffPositions,
     this.noteYPositions, // ✅ NOVO
   }) : _currentX = systemMargin,
-       _currentY =
-           staffSpace *
-           5.0, // CORREÃƒâ€¡ÃƒÆ’O CRÃƒÂTICA: Baseline ÃƒÂ© staffSpace * 5, nÃƒÂ£o * 4
+       _currentY = staffBaseline ?? staffSpace * 5.0,
        _currentSystem = 0,
        _isFirstMeasureInSystem = true;
 
@@ -214,6 +214,9 @@ class LayoutEngine {
   final Staff staff;
   final double availableWidth;
   final double staffSpace;
+  final double? staffBaseline;
+  double? _lastChordX;
+  double _lastChordWidth = 0;
   final SmuflMetadata? metadata; // ✅ Tipagem correta aplicada
 
   // System de Intelligent spacing
@@ -229,8 +232,9 @@ class LayoutEngine {
 
   /// Within-measure accidental display decision per note (Behind Bars rule),
   /// resolved from the model so layout width and rendering agree.
-  late final Map<Note, AccidentalDisplay> accidentalDecisions =
-      AccidentalResolver.resolve(staff.measures);
+  late final Map<Note, AccidentalDisplay> accidentalDecisions = Map.of(
+    AccidentalResolver.resolve(staff.measures),
+  );
 
   // Configuresção de validação (silenciosa by default)
   final bool verboseValidation;
@@ -260,6 +264,7 @@ class LayoutEngine {
     this.staff, {
     required this.availableWidth,
     this.staffSpace = 12.0,
+    this.staffBaseline,
     this.metadata,
     this.automaticFinalBarline = true,
     this.verboseValidation = false, // Silencioso por padrão
@@ -345,7 +350,15 @@ class LayoutEngine {
   /// multi-staff aligner so beams follow re-aligned noteheads). No-op for notes
   /// the engine never positioned.
   void overrideNoteX(Note note, double x) {
-    if (_noteXPositions.containsKey(note)) _noteXPositions[note] = x;
+    final previous = _noteXPositions[note];
+    if (previous == null) return;
+    final delta = x - previous;
+    for (final group in _advancedBeamGroups) {
+      // Preserve each glyph's stem-anchor offset while moving the notehead.
+      if (identical(group.notes.first, note)) group.leftX += delta;
+      if (identical(group.notes.last, note)) group.rightX += delta;
+    }
+    _noteXPositions[note] = x;
   }
 
   List<PositionedElement> layout() {
@@ -362,6 +375,8 @@ class LayoutEngine {
 
   List<PositionedElement> _layoutInternal() {
     // Limpar mapas de positions
+    _lastChordX = null;
+    _lastChordWidth = 0;
     _noteXPositions.clear();
     _noteStaffPositions.clear();
     _noteYPositions.clear(); // ✅ NOVO
@@ -374,6 +389,7 @@ class LayoutEngine {
       noteXPositions: _noteXPositions,
       noteStaffPositions: _noteStaffPositions,
       noteYPositions: _noteYPositions, // ✅ NOVO
+      staffBaseline: staffBaseline,
     );
 
     final List<PositionedElement> positionedElements = [];
@@ -407,7 +423,11 @@ class LayoutEngine {
       }
 
       // If not encontrou, Use o TimeSignature inherited
-      final timeSignatureToUse = measureTimeSignature ?? currentTimeSignature;
+      final timeSignatureToUse =
+          measureTimeSignature ??
+          currentTimeSignature ??
+          measure.inheritedTimeSignature;
+      currentTimeSignature = timeSignatureToUse;
 
       // Define TimeSignature inherited no Measure for validação preventiva
       if (timeSignatureToUse != null && measureTimeSignature == null) {
@@ -445,6 +465,8 @@ class LayoutEngine {
           cursor.addBarline(positionedElements);
         }
         cursor.startNewSystem();
+        _lastChordX = null;
+        _lastChordWidth = 0;
       }
 
       // Restate the running clef (and key signature) at the start of every
@@ -564,46 +586,52 @@ class LayoutEngine {
       return;
     }
 
-    // ✅ CORREÇÃO: Extrair notes ProcessesDAS diretamente de positionedElements
-    // As notes Processesdas are aquelas that foram Addsdas aos mapas
-    final processedNotes = positionedElements
-        .where((p) => p.element is Note)
-        .map((p) => p.element as Note)
-        .toList();
-
-    if (processedNotes.isEmpty) {
-      return;
-    }
-
-    // Use beam types already atribuídos by _processBeamsWithAnacrusis for identificar grupos.
-    // Not chamar BeamGrouper newmente, pois it Processes all as notes in conjunto
-    // sem respeitar limites de measure, causing agrupamentos incorretos between measures.
     List<Note>? currentGroup;
-    for (final note in processedNotes) {
-      switch (note.beam) {
+    int? voiceNumber;
+    for (final positioned in positionedElements) {
+      final element = positioned.element;
+      final notes = element is Note
+          ? [element]
+          : element is Chord
+          ? element.notes
+          : <Note>[];
+      if (notes.isEmpty) {
+        if (element is Rest ||
+            element is Space ||
+            element is Barline ||
+            element is Tuplet) {
+          currentGroup = null;
+        }
+        continue;
+      }
+      if (positioned.voiceNumber != voiceNumber) currentGroup = null;
+      voiceNumber = positioned.voiceNumber;
+      final beam = element is Note ? element.beam : (element as Chord).beam;
+      switch (beam) {
         case BeamType.start:
-          currentGroup = [note];
+          currentGroup = [...notes];
         case BeamType.inner:
-          currentGroup?.add(note);
+          currentGroup?.addAll(notes);
         case BeamType.end:
           if (currentGroup != null) {
-            currentGroup.add(note);
+            currentGroup.addAll(notes);
             if (currentGroup.length >= 2) {
               try {
-                final advancedGroup = _beamAnalyzer.analyzeAdvancedBeamGroup(
-                  currentGroup,
-                  timeSignature,
-                  noteXPositions: _noteXPositions,
-                  noteStaffPositions: _noteStaffPositions,
-                  noteYPositions: _noteYPositions,
+                _advancedBeamGroups.add(
+                  _beamAnalyzer.analyzeAdvancedBeamGroup(
+                    currentGroup,
+                    timeSignature,
+                    noteXPositions: _noteXPositions,
+                    noteStaffPositions: _noteStaffPositions,
+                    noteYPositions: _noteYPositions,
+                  ),
                 );
-                _advancedBeamGroups.add(advancedGroup);
               } catch (_) {
-                // Ignore beam analysis errors for individual groups
+                // Unmatched groups fall back to visible individual flags.
               }
             }
-            currentGroup = null;
           }
+          currentGroup = null;
         case null:
           currentGroup = null;
       }
@@ -855,7 +883,7 @@ class LayoutEngine {
       // Processesr beaming separadamente for each voice
       final processedElements = _processBeamsWithAnacrusis(
         voice.elements,
-        measure.timeSignature,
+        measure.timeSignature ?? measure.inheritedTimeSignature,
         autoBeaming: measure.autoBeaming,
         beamingMode: measure.beamingMode,
         manualBeamGroups: measure.manualBeamGroups,
@@ -993,8 +1021,10 @@ class LayoutEngine {
   }
 
   double _getRhythmicValue(MusicalElement element) {
-    if (element is Note) return element.duration.realValue;
+    if (element is Note)
+      return element.isGraceNote ? 0 : element.duration.realValue;
     if (element is Rest) return element.duration.realValue;
+    if (element is Space) return element.realValue;
     if (element is Chord) return element.duration.realValue;
     if (element is Tuplet) return element.totalDuration;
     return 0.0;
@@ -1019,7 +1049,7 @@ class LayoutEngine {
     // Fix: Process beaming considerando anacrusis
     final processedElements = _processBeamsWithAnacrusis(
       measure.elements,
-      measure.timeSignature,
+      measure.timeSignature ?? measure.inheritedTimeSignature,
       autoBeaming: measure.autoBeaming,
       beamingMode: measure.beamingMode,
       manualBeamGroups: measure.manualBeamGroups,
@@ -1082,6 +1112,20 @@ class LayoutEngine {
         cursor.advance(_calculateRhythmicSpacing(element, previousRhythmic));
       }
 
+      final chords = pendingFloating.whereType<MusicText>().where(
+        (text) => text.type == TextType.chord,
+      );
+      if (chords.isNotEmpty) {
+        final neededX =
+            (_lastChordX ?? -1000000) + _lastChordWidth + staffSpace;
+        if (cursor.currentX < neededX) {
+          cursor.advance(neededX - cursor.currentX);
+        }
+        _lastChordX = cursor.currentX;
+        _lastChordWidth = chords
+            .map(_estimateMusicTextWidth)
+            .reduce((a, b) => a > b ? a : b);
+      }
       // Flush all buffered floating elements at this X position so they are
       // co-positioned with the current rhythmic element.
       for (final floating in pendingFloating) {
@@ -1342,6 +1386,7 @@ class LayoutEngine {
       return _estimateRepeatMarkWidth(element);
     }
 
+    if (element is Space) return 0;
     if (element is MusicText) {
       return _estimateMusicTextWidth(element);
     }
@@ -1691,6 +1736,11 @@ class LayoutEngine {
       prevDuration = previousElement.duration.type;
     }
 
+    if (previousElement is Space) {
+      return baseSpacing *
+          math.sqrt(previousElement.realValue / 0.25) *
+          staffSpace;
+    }
     // No previous rhythmic element (start of measure/system): use base spacing.
     if (prevDuration == null) {
       return baseSpacing * staffSpace;
@@ -1736,15 +1786,7 @@ class LayoutEngine {
   }) {
     timeSignature ??= TimeSignature(numerator: 4, denominator: 4);
 
-    final notes = elements.whereType<Note>().toList();
-    if (notes.isEmpty) return elements;
-
-    // Calculate position initial no measure (for detectar anacrusis)
-    for (final element in elements) {
-      if (element is Note || element is Rest) {
-        break;
-      }
-    }
+    if (!elements.any((e) => e is Note || e is Chord)) return elements;
 
     // Agrupar notes considerando anacrusis
     final beamGroups = BeamGrouper.groupElementsForBeaming(
@@ -1755,68 +1797,65 @@ class LayoutEngine {
       manualBeamGroups: manualBeamGroups,
     );
 
-    final processedElements = <MusicalElement>[];
-    final processedNotes = <Note>{};
-
-    for (final element in elements) {
-      if (element is Note && !processedNotes.contains(element)) {
-        BeamGroup? group;
-        for (final beamGroup in beamGroups) {
-          if (beamGroup.notes.contains(element)) {
-            group = beamGroup;
-            break;
-          }
-        }
-
-        if (group != null && group.isValid) {
-          for (int i = 0; i < group.notes.length; i++) {
-            final note = group.notes[i];
-            BeamType? beamType;
-
-            if (i == 0) {
-              beamType = BeamType.start;
-            } else if (i == group.notes.length - 1) {
-              beamType = BeamType.end;
-            } else {
-              beamType = BeamType.inner;
-            }
-
-            final beamedNote = Note(
-              pitch: note.pitch,
-              duration: note.duration,
-              beam: beamType,
-              articulations: note.articulations,
-              tie: note.tie,
-              slur: note.slur,
-              ornaments: note.ornaments,
-              dynamicElement: note.dynamicElement,
-              techniques: note.techniques,
-              voice: note.voice,
-              tremoloStrokes: note.tremoloStrokes,
-              isGraceNote: note.isGraceNote,
-              alternatePitch: note.alternatePitch,
-              tabFret: note.tabFret,
-              tabString: note.tabString,
-              syllables: note.syllables,
-              accidentalParenthesis: note.accidentalParenthesis,
-              slurs: note.slurs,
-              crossStaffMove: note.crossStaffMove,
-            );
-            beamedNote.xmlId = note.xmlId;
-
-            processedElements.add(beamedNote);
-            processedNotes.add(note);
-          }
-        } else {
-          processedElements.add(element);
-          processedNotes.add(element);
-        }
-      } else if (element is! Note) {
-        processedElements.add(element);
+    final assignments = <Note, BeamType>{};
+    for (final group in beamGroups.where((group) => group.isValid)) {
+      for (var i = 0; i < group.notes.length; i++) {
+        assignments[group.notes[i]] = i == 0
+            ? BeamType.start
+            : i == group.notes.length - 1
+            ? BeamType.end
+            : BeamType.inner;
       }
     }
+    Note withBeam(Note note, BeamType? beam) {
+      if (note.beam == beam) return note;
+      final copy = Note(
+        pitch: note.pitch,
+        duration: note.duration,
+        beam: beam,
+        articulations: note.articulations,
+        tie: note.tie,
+        slur: note.slur,
+        ornaments: note.ornaments,
+        dynamicElement: note.dynamicElement,
+        techniques: note.techniques,
+        voice: note.voice,
+        tremoloStrokes: note.tremoloStrokes,
+        isGraceNote: note.isGraceNote,
+        alternatePitch: note.alternatePitch,
+        tabFret: note.tabFret,
+        tabString: note.tabString,
+        syllables: note.syllables,
+        accidentalParenthesis: note.accidentalParenthesis,
+        slurs: note.slurs,
+        crossStaffMove: note.crossStaffMove,
+      )..xmlId = note.xmlId;
+      final accidental = accidentalDecisions[note];
+      if (accidental != null) accidentalDecisions[copy] = accidental;
+      return copy;
+    }
 
-    return processedElements;
+    // Preserve event order: moving an entire beam group forward would move
+    // intervening harmony labels away from their actual beat.
+    return [
+      for (final element in elements)
+        if (element is Note)
+          withBeam(element, assignments[element])
+        else if (element is Chord && element.notes.isNotEmpty)
+          Chord(
+            notes: element.notes,
+            duration: element.duration,
+            beam: assignments[element.notes.first],
+            articulations: element.articulations,
+            tie: element.tie,
+            slur: element.slur,
+            ornaments: element.ornaments,
+            dynamic: element.dynamic,
+            voice: element.voice,
+          )..xmlId = element.xmlId
+        else
+          element,
+    ];
   }
 
   double calculateTotalHeight(List<PositionedElement> elements) {

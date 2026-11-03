@@ -110,6 +110,7 @@ class NoteRenderer extends BaseGlyphRenderer {
     Offset basePosition,
     Clef currentClef, {
     bool renderOnlyNotehead = false,
+    bool renderUngroupedBeam = false,
     int? voiceNumber,
     AccidentalDisplay accidentalDisplay = AccidentalDisplay.show,
   }) {
@@ -151,8 +152,13 @@ class NoteRenderer extends BaseGlyphRenderer {
 
     final noteCenter = Offset(basePosition.dx + centerX, noteY + centerY);
 
-    accidentalRenderer.render(canvas, note, notePos, staffPosition.toDouble(),
-        display: accidentalDisplay);
+    accidentalRenderer.render(
+      canvas,
+      note,
+      notePos,
+      staffPosition.toDouble(),
+      display: accidentalDisplay,
+    );
 
     drawGlyphWithBBox(
       canvas,
@@ -164,7 +170,7 @@ class NoteRenderer extends BaseGlyphRenderer {
 
     if (!renderOnlyNotehead &&
         note.duration.type != DurationType.whole &&
-        note.beam == null) {
+        (note.beam == null || renderUngroupedBeam)) {
       // Direction of the stem: forçada by voice in context polifônico, senão by position
       final beamCount = _getBeamCount(note.duration.type);
 

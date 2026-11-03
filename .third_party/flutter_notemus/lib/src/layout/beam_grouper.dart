@@ -48,6 +48,7 @@ class BeamGrouper {
 
     for (final element in elements) {
       if (element is Note) {
+        if (element.isGraceNote) continue;
         items.add(
           _BeamingItem.note(
             note: element,
@@ -55,8 +56,20 @@ class BeamGrouper {
             isBeamable: _isBeamable(element),
           ),
         );
+      } else if (element is Chord && element.notes.isNotEmpty) {
+        if (element.notes.every((note) => note.isGraceNote)) continue;
+        final anchor = element.notes.first;
+        items.add(
+          _BeamingItem.note(
+            note: anchor,
+            duration: element.duration.realValue,
+            isBeamable: element.duration.type.needsFlag,
+          ),
+        );
       } else if (element is Rest) {
         items.add(_BeamingItem.rest(duration: element.duration.realValue));
+      } else if (element is Space) {
+        items.add(_BeamingItem.rest(duration: element.realValue));
       }
     }
 
@@ -135,8 +148,8 @@ class BeamGrouper {
     // by the beat (denominator unit). Previously the break only fired when a
     // SINGLE note spanned two beats — which never happens for eighths — so a
     // full bar of eighths beamed as one group (V4).
-    final beatUnit = (timeSignature.numerator == 4 &&
-            timeSignature.denominator == 4)
+    final beatUnit =
+        (timeSignature.numerator == 4 && timeSignature.denominator == 4)
         ? 2.0 / timeSignature.denominator
         : 1.0 / timeSignature.denominator;
 
@@ -178,34 +191,26 @@ class BeamGrouper {
     final beatUnit = 3.0 / timeSignature.denominator;
 
     var currentGroup = <Note>[];
-    var currentBeatPosition = 0.0;
-
+    var position = 0.0;
+    int? groupBeat;
     for (final item in items) {
       if (item.note == null || !item.isBeamable) {
         _addGroupIfValid(groups, currentGroup);
         currentGroup = <Note>[];
-        currentBeatPosition += item.duration;
+        groupBeat = null;
+        position += item.duration;
         continue;
       }
-
-      final note = item.note!;
-      final nextBeatPosition = currentBeatPosition + item.duration;
-      final currentBeat = (currentBeatPosition / beatUnit).floor();
-      final nextBeat = (nextBeatPosition / beatUnit).floor();
-
-      if (currentBeat != nextBeat && currentGroup.isNotEmpty) {
+      // Group by onset. Testing the note's end split off the third eighth
+      // exactly when it completed a dotted-quarter beat in 6/8.
+      final beat = (position / beatUnit + 0.000001).floor();
+      if (currentGroup.isNotEmpty && beat != groupBeat) {
         _addGroupIfValid(groups, currentGroup);
         currentGroup = <Note>[];
       }
-
-      currentGroup.add(note);
-      currentBeatPosition = nextBeatPosition;
-
-      if (_isEndOfCompoundBeat(nextBeatPosition, beatUnit) &&
-          currentGroup.length >= 2) {
-        groups.add(BeamGroup(notes: List<Note>.from(currentGroup)));
-        currentGroup.clear();
-      }
+      currentGroup.add(item.note!);
+      groupBeat = beat;
+      position += item.duration;
     }
 
     _addGroupIfValid(groups, currentGroup);
@@ -290,11 +295,6 @@ class BeamGrouper {
         }
         return subdivisions;
     }
-  }
-
-  static bool _isEndOfCompoundBeat(double position, double beatUnit) {
-    const tolerance = 0.0001;
-    return (position % beatUnit).abs() < tolerance;
   }
 
   static List<BeamGroup> _groupAllRuns(List<List<Note>> runs) {

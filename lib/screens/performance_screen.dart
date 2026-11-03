@@ -1,3 +1,4 @@
+import '../widgets/score_display_settings.dart';
 import '../widgets/annotation_palette.dart';
 
 import 'dart:async';
@@ -646,6 +647,43 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
   }
 
   void _showReaderSettings() {
+    if (_showingScore) {
+      showModalBottomSheet<void>(
+        context: context,
+        showDragHandle: true,
+        isScrollControlled: true,
+        builder: (context) => ListenableBuilder(
+          listenable: _controller,
+          builder: (context, _) => StatefulBuilder(
+            builder: (context, updateSheet) => ScoreDisplaySettings(
+              preferences: _scoreDisplayPreferences,
+              onChanged: (next) {
+                setState(() => _scoreDisplayPreferences = next);
+                _scoreDisplayController.setPreferences(next);
+                updateSheet(() {});
+              },
+              footer: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SwitchListTile(
+                    title: const Text('Dark stage theme'),
+                    value:
+                        _controller.preferences.theme == PerformanceTheme.dark,
+                    onChanged: (_) => _controller.toggleTheme(),
+                  ),
+                  SwitchListTile(
+                    title: const Text('Keep screen awake'),
+                    value: _controller.preferences.keepAwake,
+                    onChanged: (_) => unawaited(_controller.toggleKeepAwake()),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      return;
+    }
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,

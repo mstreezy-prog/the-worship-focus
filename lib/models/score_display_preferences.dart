@@ -1,12 +1,25 @@
+enum ScoreChordColor {
+  black(0xFF111111, 'Black'),
+  blue(0xFF174EA6, 'Blue'),
+  burgundy(0xFF8B1E3F, 'Burgundy'),
+  green(0xFF176B3A, 'Green'),
+  purple(0xFF663399, 'Purple');
+
+  const ScoreChordColor(this.value, this.label);
+  final int value;
+  final String label;
+}
+
 class ScoreDisplayPreferences {
   const ScoreDisplayPreferences({
     this.lyricFontSize = defaultLyricFontSize,
     this.chordFontSize = defaultChordFontSize,
+    this.chordColor = ScoreChordColor.black,
     this.noteSize = defaultNoteSize,
   });
 
   static const double defaultLyricFontSize = 17;
-  static const double defaultChordFontSize = 19;
+  static const double defaultChordFontSize = 22;
   static const double defaultNoteSize = 12;
 
   static const double minimumLyricFontSize = 10;
@@ -18,6 +31,7 @@ class ScoreDisplayPreferences {
 
   final double lyricFontSize;
   final double chordFontSize;
+  final ScoreChordColor chordColor;
 
   /// The size of noteheads and staff lines in the rendered score.
   final double noteSize;
@@ -29,6 +43,7 @@ class ScoreDisplayPreferences {
   ScoreDisplayPreferences copyWith({
     double? lyricFontSize,
     double? chordFontSize,
+    ScoreChordColor? chordColor,
     double? noteSize,
   }) {
     return ScoreDisplayPreferences(
@@ -42,6 +57,7 @@ class ScoreDisplayPreferences {
         minimumChordFontSize,
         maximumChordFontSize,
       ),
+      chordColor: chordColor ?? this.chordColor,
       noteSize: _clamp(
         noteSize ?? this.noteSize,
         minimumNoteSize,
@@ -53,6 +69,7 @@ class ScoreDisplayPreferences {
   Map<String, Object> toJson() => {
     'lyricFontSize': lyricFontSize,
     'chordFontSize': chordFontSize,
+    'chordColor': chordColor.name,
     'noteSize': noteSize,
   };
 
@@ -60,6 +77,9 @@ class ScoreDisplayPreferences {
     return ScoreDisplayPreferences().copyWith(
       lyricFontSize: (json['lyricFontSize'] as num?)?.toDouble(),
       chordFontSize: (json['chordFontSize'] as num?)?.toDouble(),
+      chordColor: ScoreChordColor.values
+          .where((color) => color.name == json['chordColor'])
+          .firstOrNull,
       noteSize: (json['noteSize'] as num?)?.toDouble(),
     );
   }

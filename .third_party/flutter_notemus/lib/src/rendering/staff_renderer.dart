@@ -221,6 +221,7 @@ class StaffRenderer {
   }
 
   // Set de notes that are in advanced beam groups
+  Set<Note> _notesInSimpleBeams = {};
   final Set<Note> _notesInAdvancedBeams = {};
   final Map<Note, Clef> _noteClefs = {};
 
@@ -251,6 +252,10 @@ class StaffRenderer {
         _notesInAdvancedBeams.addAll(group.notes);
       }
     }
+
+    _notesInSimpleBeams = _notesInAdvancedBeams.isEmpty
+        ? groupRenderer.notesWithBeams(elements)
+        : {};
 
     // Desenhar staff lines By System
     _drawStaffLinesBySystem(canvas, elements);
@@ -301,9 +306,12 @@ class StaffRenderer {
         final beamElements = _skipNotes.isEmpty
             ? elements
             : elements
-                .where((pe) =>
-                    !(pe.element is Note && _skipNotes.contains(pe.element)))
-                .toList();
+                  .where(
+                    (pe) =>
+                        !(pe.element is Note &&
+                            _skipNotes.contains(pe.element)),
+                  )
+                  .toList();
         groupRenderer.renderBeams(canvas, beamElements, currentClef!);
       }
 
@@ -390,8 +398,9 @@ class StaffRenderer {
       return base.copyWith(
         fontSize: base.fontSize ?? fontSize,
         color: base.color ?? color,
-        fontStyle:
-            italic ? FontStyle.italic : (base.fontStyle ?? FontStyle.normal),
+        fontStyle: italic
+            ? FontStyle.italic
+            : (base.fontStyle ?? FontStyle.normal),
         height: 1.0,
       );
     }
@@ -416,7 +425,8 @@ class StaffRenderer {
           final prevSyl = prev.note.syllables![verse];
           if (prevSyl.type == SyllableType.initial ||
               prevSyl.type == SyllableType.middle) {
-            final prevRight = prev.x + measure(prevSyl.text, prevSyl.italic) / 2;
+            final prevRight =
+                prev.x + measure(prevSyl.text, prevSyl.italic) / 2;
             final curLeft = ln.x - measure(syl.text, syl.italic) / 2;
             final midX = (prevRight + curLeft) / 2;
             final lyricY = firstLineY + verse * lineHeight;
@@ -468,8 +478,9 @@ class StaffRenderer {
           text: text,
           style: base.copyWith(
             fontSize: base.fontSize ?? fontSize,
-            fontStyle:
-                italic ? FontStyle.italic : (base.fontStyle ?? FontStyle.normal),
+            fontStyle: italic
+                ? FontStyle.italic
+                : (base.fontStyle ?? FontStyle.normal),
           ),
         ),
         textDirection: TextDirection.ltr,
@@ -502,13 +513,16 @@ class StaffRenderer {
         if (el is Note) {
           final syls = el.syllables;
           final hasSyl =
-              syls != null && verse < syls.length && syls[verse].text.isNotEmpty;
+              syls != null &&
+              verse < syls.length &&
+              syls[verse].text.isNotEmpty;
           if (hasSyl) {
             flush();
             final syl = syls[verse];
             if (syl.type == SyllableType.single ||
                 syl.type == SyllableType.terminal) {
-              startX = pe.position.dx +
+              startX =
+                  pe.position.dx +
                   measure(syl.text, syl.italic) / 2 +
                   coordinates.staffSpace * 0.35;
               endX = null;
@@ -844,6 +858,8 @@ class StaffRenderer {
         basePosition,
         currentClef!,
         renderOnlyNotehead: onlyNotehead,
+        renderUngroupedBeam:
+            !onlyNotehead && !_notesInSimpleBeams.contains(element),
         voiceNumber: positioned.voiceNumber,
         accidentalDisplay:
             _accidentalDecisions[element] ?? AccidentalDisplay.show,
@@ -865,6 +881,8 @@ class StaffRenderer {
         element,
         basePosition,
         currentClef!,
+        renderOnlyNoteheads: element.notes.any(_notesInAdvancedBeams.contains),
+        renderUngroupedBeam: !element.notes.any(_notesInAdvancedBeams.contains),
         voiceNumber: positioned.voiceNumber,
         accidentalDecisions: _accidentalDecisions,
       );

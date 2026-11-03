@@ -1,3 +1,4 @@
+import '../widgets/score_display_settings.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -205,8 +206,14 @@ class _MusicXmlViewerScreenState extends State<MusicXmlViewerScreen> {
     return showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      builder: (context) =>
-          _ScoreDisplaySettingsSheet(controller: _displayController),
+      isScrollControlled: true,
+      builder: (context) => ListenableBuilder(
+        listenable: _displayController,
+        builder: (context, _) => ScoreDisplaySettings(
+          preferences: _displayController.preferences,
+          onChanged: _displayController.setPreferences,
+        ),
+      ),
     );
   }
 
@@ -373,121 +380,6 @@ class _MusicXmlViewerScreenState extends State<MusicXmlViewerScreen> {
           ),
         );
       },
-    );
-  }
-}
-
-class _ScoreDisplaySettingsSheet extends StatelessWidget {
-  const _ScoreDisplaySettingsSheet({required this.controller});
-
-  final ScoreDisplayController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: ListenableBuilder(
-        listenable: controller,
-        builder: (context, _) {
-          final preferences = controller.preferences;
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Score display',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'These settings apply to every MusicXML score, including Live mode.',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-                const SizedBox(height: 16),
-                _ScoreSizeSlider(
-                  label: 'Lyrics',
-                  value: preferences.lyricFontSize,
-                  minimum: ScoreDisplayPreferences.minimumLyricFontSize,
-                  maximum: ScoreDisplayPreferences.maximumLyricFontSize,
-                  onChanged: controller.setLyricFontSize,
-                ),
-                _ScoreSizeSlider(
-                  label: 'Chords',
-                  value: preferences.chordFontSize,
-                  minimum: ScoreDisplayPreferences.minimumChordFontSize,
-                  maximum: ScoreDisplayPreferences.maximumChordFontSize,
-                  onChanged: controller.setChordFontSize,
-                ),
-                _ScoreSizeSlider(
-                  label: 'Notes and staff',
-                  value: preferences.noteSize,
-                  minimum: ScoreDisplayPreferences.minimumNoteSize,
-                  maximum: ScoreDisplayPreferences.maximumNoteSize,
-                  onChanged: controller.setNoteSize,
-                ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton.icon(
-                    onPressed: controller.reset,
-                    icon: const Icon(Icons.restart_alt),
-                    label: const Text('Restore defaults'),
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _ScoreSizeSlider extends StatelessWidget {
-  const _ScoreSizeSlider({
-    required this.label,
-    required this.value,
-    required this.minimum,
-    required this.maximum,
-    required this.onChanged,
-  });
-
-  final String label;
-  final double value;
-  final double minimum;
-  final double maximum;
-  final ValueChanged<double> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      label: '$label size',
-      value: value.round().toString(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  label,
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-              ),
-              Text('${value.round()} pt'),
-            ],
-          ),
-          Slider(
-            value: value,
-            min: minimum,
-            max: maximum,
-            divisions: (maximum - minimum).round(),
-            label: '${value.round()} pt',
-            onChanged: onChanged,
-          ),
-        ],
-      ),
     );
   }
 }
