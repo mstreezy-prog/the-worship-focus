@@ -10,7 +10,6 @@ import '../controllers/score_display_controller.dart';
 import '../models/music_xml_arrangement.dart';
 import '../models/performance_content.dart';
 import '../models/score_annotation.dart';
-import '../models/score_display_preferences.dart';
 import '../models/song.dart';
 import '../services/music_xml_transposer.dart';
 import '../widgets/scrollable_score_view.dart';

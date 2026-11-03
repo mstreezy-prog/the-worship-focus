@@ -87,7 +87,7 @@ class ScoreDisplaySettings extends StatelessWidget {
                 label: const Text('Restore defaults'),
               ),
             ),
-            if (footer != null) footer!,
+            ?footer,
           ],
         ),
       ),
